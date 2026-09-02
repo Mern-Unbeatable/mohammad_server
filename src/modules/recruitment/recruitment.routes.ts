@@ -1,0 +1,53 @@
+import { Router } from "express";
+import { authenticate } from "@/middleware/authenticate";
+import { validate } from "@/middleware/validate";
+import { recruitmentController } from "./recruitment.controller";
+import {
+  applyJobSchema,
+  createJobSchema,
+  jobIdParamSchema,
+  jobListQuerySchema,
+  updateJobSchema,
+} from "./recruitment.validators";
+
+const router = Router();
+
+router.use(authenticate);
+
+router.get(
+  "/",
+  validate({ query: jobListQuerySchema }),
+  recruitmentController.list,
+);
+router.post(
+  "/",
+  validate({ body: createJobSchema }),
+  recruitmentController.create,
+);
+router.get(
+  "/:id",
+  validate({ params: jobIdParamSchema }),
+  recruitmentController.getById,
+);
+router.patch(
+  "/:id",
+  validate({ params: jobIdParamSchema, body: updateJobSchema }),
+  recruitmentController.update,
+);
+router.delete(
+  "/:id",
+  validate({ params: jobIdParamSchema }),
+  recruitmentController.remove,
+);
+router.post(
+  "/:id/apply",
+  validate({ params: jobIdParamSchema, body: applyJobSchema }),
+  recruitmentController.apply,
+);
+router.get(
+  "/:id/applications",
+  validate({ params: jobIdParamSchema }),
+  recruitmentController.listApplications,
+);
+
+export const recruitmentRoutes = router;

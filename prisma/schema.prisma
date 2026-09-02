@@ -1,0 +1,649 @@
+// Lab Unity — Prisma schema
+// Datasource: PostgreSQL. Generator: prisma-client-js.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===================================================================
+// Enums
+// ===================================================================
+
+enum Role {
+  USER
+  SUPPLIER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+enum ProfileType {
+  LABORATORY
+  HOSPITAL
+  CLINIC
+  SUPPLIER
+  PROFESSIONAL
+  OTHER
+}
+
+enum SubscriptionPlan {
+  FREE
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  CANCELLED
+  EXPIRED
+}
+
+enum ConnectionStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum FeedPostType {
+  QUESTION
+  INFORMATION
+  SUPPLIERS
+}
+
+enum ReactionType {
+  LIKE
+  LOVE
+  CELEBRATE
+  SUPPORT
+  INSIGHTFUL
+  CURIOUS
+}
+
+enum ListingCondition {
+  NEW
+  LIKE_NEW
+  GOOD
+  REFURBISHED
+  FOR_PARTS
+}
+
+enum ListingCategory {
+  CHROMATOGRAPHY
+  SPECTROSCOPY
+  INCUBATION
+  CENTRIFUGATION
+  WEIGHING
+  SAFETY
+  CONSUMABLES
+  MICROSCOPY
+}
+
+enum ListingStatus {
+  ACTIVE
+  SOLD
+  REMOVED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+}
+
+enum JobLevel {
+  ENTRY_LEVEL
+  MID_LEVEL
+  SENIOR
+}
+
+enum JobStatus {
+  OPEN
+  CLOSED
+  REMOVED
+}
+
+enum JobApplicationStatus {
+  APPLIED
+  REVIEWED
+  ACCEPTED
+  REJECTED
+}
+
+enum GeneralPostType {
+  NEWS
+  DOCUMENT
+}
+
+enum AdCategory {
+  PRODUCT
+  SERVICE
+  PROMO
+  WEBINAR
+}
+
+enum AdStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  REJECTED
+}
+
+enum ReportTargetType {
+  POST
+  COMMENT
+  LISTING
+  JOB
+  GENERAL_POST
+  USER
+}
+
+enum ReportReason {
+  HARASSMENT
+  FRAUD_OR_SCAM
+  SPAM
+  MISINFORMATION
+  HATEFUL_SPEECH
+  THREATS_OR_VIOLENCE
+  SELF_HARM
+  EXTREMIST_ORGANIZATIONS
+  GRAPHIC_CONTENT
+  SEXUAL_CONTENT
+  FAKE_ACCOUNT
+  CHILD_EXPLOITATION
+  RESTRICTED_GOODS
+  NONCONSENSUAL_IMAGERY
+}
+
+enum ReportStatus {
+  PENDING
+  UNDER_REVIEW
+  RESOLVED
+}
+
+enum ModerationAction {
+  WARN
+  SUSPEND
+  BAN
+  REMOVE_CONTENT
+  DISMISS
+}
+
+enum NotificationType {
+  CONNECTION_REQUEST
+  CONNECTION_ACCEPTED
+  MESSAGE
+  GROUP_MESSAGE
+  COMMENT
+  REACTION
+  LISTING_ENQUIRY
+  JOB_MATCH
+  JOB_APPLICATION
+  AD_APPROVED
+  AD_REJECTED
+  AD_EXPIRING
+  REPORT_UPDATE
+  SYSTEM
+}
+
+// ===================================================================
+// Identity & profile
+// ===================================================================
+
+model User {
+  id           String      @id @default(uuid())
+  email        String      @unique
+  passwordHash String
+  role         Role        @default(USER)
+  profileType  ProfileType @default(LABORATORY)
+  status       UserStatus  @default(ACTIVE)
+  warnings     Int         @default(0)
+  lastLoginAt  DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  profile      Profile?
+  subscription Subscription?
+
+  refreshTokens        RefreshToken[]
+  feedPosts            FeedPost[]
+  feedComments         FeedComment[]
+  feedReactions        FeedReaction[]
+  listings             Listing[]
+  savedListings        SavedListing[]
+  jobs                 Job[]
+  jobApplications      JobApplication[]
+  generalPosts         GeneralPost[]
+  blogs                Blog[]
+  advertisements       Advertisement[]
+  notifications        Notification[]
+  messages             Message[]
+  conversationParts    ConversationParticipant[]
+  sentConnections      Connection[]        @relation("ConnectionRequester")
+  receivedConnections  Connection[]        @relation("ConnectionAddressee")
+  reportsMade          Report[]            @relation("ReportReporter")
+  reportsReceived      Report[]            @relation("ReportedUser")
+  moderationActions    ModerationLog[]     @relation("ModerationActor")
+  moderationTargeted   ModerationLog[]     @relation("ModerationTarget")
+
+  @@index([role])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Profile {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName        String
+  lastName         String
+  title            String?
+  company          String?
+  country          String?
+  location         String?
+  phone            String?
+  about            String?
+  aboutExtended    String?
+  avatarUrl        String?
+  coverUrl         String?
+  initials         String?
+  connectionsCount Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([company])
+  @@index([country])
+}
+
+model Subscription {
+  id            String             @id @default(uuid())
+  userId        String             @unique
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan          SubscriptionPlan   @default(FREE)
+  status        SubscriptionStatus @default(TRIAL)
+  amount        Int                @default(0) // stored in cents
+  billingCycle  String?
+  startDate     DateTime?
+  renewalDate   DateTime?
+  nextPayment   DateTime?
+  paymentMethod String?
+  trialDaysLeft Int                @default(0)
+  trialDaysTotal Int               @default(90)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([plan])
+  @@index([status])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ===================================================================
+// Connections (contacts)
+// ===================================================================
+
+model Connection {
+  id          String           @id @default(uuid())
+  requesterId String
+  addresseeId String
+  requester   User             @relation("ConnectionRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee   User             @relation("ConnectionAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  status      ConnectionStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
+  @@index([requesterId, status])
+}
+
+// ===================================================================
+// Feed
+// ===================================================================
+
+model FeedPost {
+  id        String       @id @default(uuid())
+  authorId  String
+  author    User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  type      FeedPostType @default(INFORMATION)
+  content   String
+  imageUrl  String?
+  documentUrl String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  comments  FeedComment[]
+  reactions FeedReaction[]
+
+  @@index([type])
+  @@index([authorId])
+  @@index([createdAt])
+}
+
+model FeedComment {
+  id        String   @id @default(uuid())
+  postId    String
+  post      FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([postId])
+}
+
+model FeedReaction {
+  id        String       @id @default(uuid())
+  postId    String
+  post      FeedPost     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      ReactionType @default(LIKE)
+  createdAt DateTime     @default(now())
+
+  @@unique([postId, userId])
+  @@index([postId])
+}
+
+// ===================================================================
+// Marketplace
+// ===================================================================
+
+model Listing {
+  id          String           @id @default(uuid())
+  sellerId    String
+  seller      User             @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  condition   ListingCondition
+  year        Int?
+  price       Int // stored in cents
+  category    ListingCategory
+  location    String?
+  images      String[]         @default([])
+  status      ListingStatus    @default(ACTIVE)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  savedBy SavedListing[]
+
+  @@index([category])
+  @@index([status])
+  @@index([sellerId])
+  @@index([createdAt])
+}
+
+model SavedListing {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, listingId])
+  @@index([userId])
+}
+
+// ===================================================================
+// Recruitment
+// ===================================================================
+
+model Job {
+  id             String         @id @default(uuid())
+  ownerId        String
+  owner          User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title          String
+  company        String
+  location       String
+  employmentType EmploymentType
+  level          JobLevel
+  salary         String?
+  applyLink      String?
+  imageUrl       String?
+  about          String
+  requirements   String[]       @default([])
+  status         JobStatus      @default(OPEN)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  applications JobApplication[]
+
+  @@index([level])
+  @@index([employmentType])
+  @@index([status])
+  @@index([ownerId])
+  @@index([createdAt])
+}
+
+model JobApplication {
+  id          String               @id @default(uuid())
+  jobId       String
+  job         Job                  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  applicantId String
+  applicant   User                 @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  coverLetter String?
+  status      JobApplicationStatus @default(APPLIED)
+  createdAt   DateTime             @default(now())
+
+  @@unique([jobId, applicantId])
+  @@index([jobId])
+  @@index([applicantId])
+}
+
+// ===================================================================
+// General posts (news & documents)
+// ===================================================================
+
+model GeneralPost {
+  id          String          @id @default(uuid())
+  authorId    String
+  author      User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  type        GeneralPostType
+  title       String
+  summary     String?
+  category    String?
+  source      String?
+  imageUrl    String?
+  documentUrl String?
+  body        String[]        @default([])
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([type])
+  @@index([authorId])
+  @@index([createdAt])
+}
+
+// ===================================================================
+// Blogs
+// ===================================================================
+
+model Blog {
+  id          String    @id @default(uuid())
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  slug        String    @unique
+  category    String
+  title       String
+  excerpt     String
+  image       String?
+  readTime    String?
+  body        String
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([category])
+  @@index([publishedAt])
+}
+
+// ===================================================================
+// Messaging
+// ===================================================================
+
+model Conversation {
+  id        String   @id @default(uuid())
+  isGroup   Boolean  @default(false)
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([updatedAt])
+}
+
+model ConversationParticipant {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  body           String
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+// ===================================================================
+// Notifications
+// ===================================================================
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  subtitle  String?
+  link      String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, read])
+  @@index([createdAt])
+}
+
+// ===================================================================
+// Advertisements (supplier)
+// ===================================================================
+
+model Advertisement {
+  id              String     @id @default(uuid())
+  supplierId      String
+  supplier        User       @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  title           String
+  category        AdCategory
+  description     String
+  imageUrl        String?
+  videoUrl        String?
+  price           Int? // stored in cents
+  contact         String?
+  location        String?
+  eventDate       DateTime?
+  eventTime       String?
+  organizer       String?
+  durationDays    Int        @default(7)
+  startDate       DateTime?
+  expiryDate      DateTime?
+  status          AdStatus   @default(PENDING)
+  rejectionReason String?
+  views           Int        @default(0)
+  clicks          Int        @default(0)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([status])
+  @@index([supplierId])
+  @@index([category])
+  @@index([createdAt])
+}
+
+// ===================================================================
+// Moderation & reports
+// ===================================================================
+
+model Report {
+  id            String           @id @default(uuid())
+  reporterId    String
+  reporter      User             @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUserId String?
+  reportedUser  User?            @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
+  targetType    ReportTargetType
+  targetId      String?
+  targetSnippet String?
+  reason        ReportReason
+  reasonDetail  String?
+  status        ReportStatus     @default(PENDING)
+  resolvedAt    DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  moderationLogs ModerationLog[]
+
+  @@index([status])
+  @@index([reportedUserId])
+  @@index([createdAt])
+}
+
+model ModerationLog {
+  id        String           @id @default(uuid())
+  reportId  String?
+  report    Report?          @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  actorId   String
+  actor     User             @relation("ModerationActor", fields: [actorId], references: [id], onDelete: Cascade)
+  targetUserId String?
+  targetUser User?           @relation("ModerationTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+  action    ModerationAction
+  note      String?
+  createdAt DateTime         @default(now())
+
+  @@index([reportId])
+  @@index([targetUserId])
+}
+
+// ===================================================================
+// Application settings (key/value)
+// ===================================================================
+
+model AppSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+}

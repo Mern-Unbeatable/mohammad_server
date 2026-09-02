@@ -1,0 +1,187 @@
+import { JobStatus, Prisma } from "@prisma/client";
+import { prisma } from "@/infrastructure/prisma";
+import {
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+} from "@/shared/errors/AppError";
+import { buildPaginationMeta } from "@/shared/http/apiResponse";
+import { toPrismaPagination } from "@/shared/http/pagination";
+import { serializeProfile } from "@/shared/serializers/user.serializer";
+import type { JobListQuery } from "./recruitment.validators";
+
+const jobInclude = {
+  owner: { include: { profile: true } },
+  _count: { select: { applications: true } },
+} satisfies Prisma.JobInclude;
+
+type JobPayload = Prisma.JobGetPayload<{ include: typeof jobInclude }>;
+
+const sinceToDate = (since?: string): Date | undefined => {
+  if (!since) return undefined;
+  const days = since === "7d" ? 7 : since === "30d" ? 30 : 90;
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+};
+
+const serializeJob = (job: JobPayload) => ({
+  id: job.id,
+  title: job.title,
+  company: job.company,
+  location: job.location,
+  employmentType: job.employmentType,
+  level: job.level,
+  salary: job.salary,
+  applyLink: job.applyLink,
+  imageUrl: job.imageUrl,
+  about: job.about,
+  requirements: job.requirements,
+  status: job.status,
+  postedAt: job.createdAt,
+  applicationsCount: job._count.applications,
+  owner: {
+    id: job.owner.id,
+    ...(job.owner.profile ? serializeProfile(job.owner.profile) : {}),
+  },
+});
+
+export const recruitmentService = {
+  async list(userId: string, query: JobListQuery) {
+    const { skip, take } = toPrismaPagination(query.page, query.pageSize);
+    const since = sinceToDate(query.since);
+
+    const where: Prisma.JobWhereInput = {
+      ...(query.mine ? { ownerId: userId } : { status: JobStatus.OPEN }),
+      ...(query.level ? { level: query.level } : {}),
+      ...(query.employmentType ? { employmentType: query.employmentType } : {}),
+      ...(since ? { createdAt: { gte: since } } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { title: { contains: query.search, mode: "insensitive" } },
+              { company: { contains: query.search, mode: "insensitive" } },
+              { location: { contains: query.search, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    };
+
+    const [rows, total] = await prisma.$transaction([
+      prisma.job.findMany({
+        where,
+        include: jobInclude,
+        orderBy: { createdAt: query.sort },
+        skip,
+        take,
+      }),
+      prisma.job.count({ where }),
+    ]);
+
+    return {
+      data: rows.map(serializeJob),
+      meta: buildPaginationMeta(query.page, query.pageSize, total),
+    };
+  },
+
+  async getById(id: string) {
+    const job = await prisma.job.findUnique({
+      where: { id },
+      include: jobInclude,
+    });
+    if (!job) throw new NotFoundError("Job not found");
+    return serializeJob(job);
+  },
+
+  async create(ownerId: string, input: Prisma.JobCreateWithoutOwnerInput) {
+    const job = await prisma.job.create({
+      data: { ...input, owner: { connect: { id: ownerId } } },
+      include: jobInclude,
+    });
+    return serializeJob(job);
+  },
+
+  async update(
+    userId: string,
+    role: string,
+    id: string,
+    input: Prisma.JobUpdateInput,
+  ) {
+    const job = await prisma.job.findUnique({ where: { id } });
+    if (!job) throw new NotFoundError("Job not found");
+    if (job.ownerId !== userId && role !== "ADMIN") {
+      throw new ForbiddenError("You can only edit your own job postings");
+    }
+    const updated = await prisma.job.update({
+      where: { id },
+      data: input,
+      include: jobInclude,
+    });
+    return serializeJob(updated);
+  },
+
+  async remove(userId: string, role: string, id: string) {
+    const job = await prisma.job.findUnique({ where: { id } });
+    if (!job) throw new NotFoundError("Job not found");
+    if (job.ownerId !== userId && role !== "ADMIN") {
+      throw new ForbiddenError("You can only delete your own job postings");
+    }
+    await prisma.job.delete({ where: { id } });
+  },
+
+  async apply(jobId: string, applicantId: string, coverLetter?: string) {
+    const job = await prisma.job.findUnique({ where: { id: jobId } });
+    if (!job) throw new NotFoundError("Job not found");
+    if (job.status !== JobStatus.OPEN)
+      throw new ConflictError("This job is no longer open");
+    if (job.ownerId === applicantId) {
+      throw new ConflictError("You cannot apply to your own job posting");
+    }
+
+    const existing = await prisma.jobApplication.findUnique({
+      where: { jobId_applicantId: { jobId, applicantId } },
+    });
+    if (existing)
+      throw new ConflictError("You have already applied to this job");
+
+    const application = await prisma.jobApplication.create({
+      data: { jobId, applicantId, coverLetter },
+    });
+
+    await prisma.notification.create({
+      data: {
+        userId: job.ownerId,
+        type: "JOB_APPLICATION",
+        title: "New job application",
+        subtitle: `Someone applied to ${job.title}`,
+        link: `/recruitment/${jobId}`,
+      },
+    });
+
+    return application;
+  },
+
+  async listApplications(ownerId: string, role: string, jobId: string) {
+    const job = await prisma.job.findUnique({ where: { id: jobId } });
+    if (!job) throw new NotFoundError("Job not found");
+    if (job.ownerId !== ownerId && role !== "ADMIN") {
+      throw new ForbiddenError(
+        "You can only view applications for your own jobs",
+      );
+    }
+    const applications = await prisma.jobApplication.findMany({
+      where: { jobId },
+      include: { applicant: { include: { profile: true } } },
+      orderBy: { createdAt: "desc" },
+    });
+    return applications.map((a) => ({
+      id: a.id,
+      status: a.status,
+      coverLetter: a.coverLetter,
+      appliedAt: a.createdAt,
+      applicant: {
+        id: a.applicant.id,
+        email: a.applicant.email,
+        ...(a.applicant.profile ? serializeProfile(a.applicant.profile) : {}),
+      },
+    }));
+  },
+};

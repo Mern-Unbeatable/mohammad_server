@@ -1,0 +1,2357 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "Lab Unity API",
+    "description": "Complete REST API collection for the Lab Unity platform.\n\n**Roles:**\n- `ADMIN` — Full platform access\n- `SUPPLIER` — Can create marketplace listings and advertisements\n- `USER` — Regular authenticated customer\n\n**Auth flow:**\n1. Call `POST /auth/login` to receive `accessToken` + `refreshToken`\n2. Set the relevant token variable (`adminToken`, `sellerToken`, `customerToken`)\n3. All protected requests are pre-configured with Bearer auth using `{{accessToken}}`\n\n**Base URL:** `{{baseUrl}}` defaults to `http://localhost:4000/api/v1`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000/api/v1",
+      "type": "string"
+    },
+    { "key": "accessToken", "value": "", "type": "string" },
+    { "key": "refreshToken", "value": "", "type": "string" },
+    { "key": "adminToken", "value": "", "type": "string" },
+    { "key": "sellerToken", "value": "", "type": "string" },
+    { "key": "customerToken", "value": "", "type": "string" },
+    { "key": "userId", "value": "", "type": "string" },
+    { "key": "postId", "value": "", "type": "string" },
+    { "key": "commentId", "value": "", "type": "string" },
+    { "key": "listingId", "value": "", "type": "string" },
+    { "key": "jobId", "value": "", "type": "string" },
+    { "key": "blogSlug", "value": "", "type": "string" },
+    { "key": "blogId", "value": "", "type": "string" },
+    { "key": "connectionId", "value": "", "type": "string" },
+    { "key": "conversationId", "value": "", "type": "string" },
+    { "key": "notificationId", "value": "", "type": "string" },
+    { "key": "adId", "value": "", "type": "string" },
+    { "key": "reportId", "value": "", "type": "string" },
+    { "key": "generalPostId", "value": "", "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "🔐 Auth",
+      "description": "Authentication endpoints — registration, login, token refresh and logout. These endpoints do not require an existing session.",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Jane\",\n  \"lastName\": \"Doe\",\n  \"email\": \"jane.doe@example.com\",\n  \"password\": \"Secret123!\",\n  \"confirmPassword\": \"Secret123!\",\n  \"profileType\": \"laboratory\",\n  \"jobTitle\": \"Lab Manager\",\n  \"company\": \"Acme Labs\",\n  \"country\": \"Germany\",\n  \"phone\": \"+49123456789\",\n  \"professionalInfo\": \"10 years in clinical diagnostics\",\n  \"acceptedTerms\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Create a new account. `profileType` options: `laboratory`, `hospital`, `clinic`, `supplier`, `professional`, `other`. Password must be ≥8 chars with one uppercase letter, one digit, and one symbol.\n\nRate-limited."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"accessToken\": \"eyJhbGciOiJIUzI1NiJ9...\",\n    \"refreshToken\": \"eyJhbGciOiJIUzI1NiJ9...\",\n    \"user\": {\n      \"id\": \"uuid\",\n      \"email\": \"jane.doe@example.com\",\n      \"firstName\": \"Jane\",\n      \"lastName\": \"Doe\",\n      \"role\": \"USER\"\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.data) {",
+                  "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', json.data.refreshToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"jane.doe@example.com\",\n  \"password\": \"Secret123!\",\n  \"remember\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Exchange credentials for an access token and refresh token. The test script automatically saves tokens to collection variables.\n\nRate-limited."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"accessToken\": \"eyJhbGciOiJIUzI1NiJ9...\",\n    \"refreshToken\": \"eyJhbGciOiJIUzI1NiJ9...\",\n    \"user\": {\n      \"id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n      \"email\": \"jane.doe@example.com\",\n      \"firstName\": \"Jane\",\n      \"lastName\": \"Doe\",\n      \"role\": \"USER\"\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.data) {",
+                  "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', json.data.refreshToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Issue a new access token and rotate the refresh token. Send the current `refreshToken`."
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Revoke a refresh token, ending the session. No Bearer token required."
+          }
+        },
+        {
+          "name": "Get Current User (me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Returns the JWT payload for the authenticated user (id, role, email). Requires a valid access token."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "🌐 Public",
+      "description": "Endpoints that are publicly accessible without authentication, or with optional authentication.",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Returns server status and process uptime."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"data\": { \"status\": \"ok\", \"uptime\": 1234.56 }\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Blogs",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/blogs?page=1&pageSize=10&category=diagnostics",
+              "host": ["{{baseUrl}}"],
+              "path": ["blogs"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (default 1)"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "10",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "category",
+                  "value": "diagnostics",
+                  "description": "Filter by category (optional)"
+                }
+              ]
+            },
+            "description": "Publicly readable blog list. Optional authentication enriches the response. Supports pagination and category filter."
+          }
+        },
+        {
+          "name": "Get Blog by Slug",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/blogs/{{blogSlug}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["blogs", "{{blogSlug}}"]
+            },
+            "description": "Retrieve a single blog post by its URL slug. Fully public."
+          }
+        },
+        {
+          "name": "Get Subscription Plans",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/subscriptions/plans",
+              "host": ["{{baseUrl}}"],
+              "path": ["subscriptions", "plans"]
+            },
+            "description": "Returns available subscription plan definitions (FREE, MONTHLY, YEARLY) with pricing. No authentication required."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "📊 Dashboard",
+      "description": "Dashboard summary and analytics endpoints for each role.",
+      "item": [
+        {
+          "name": "📁 Admin",
+          "description": "Admin-only dashboard and analytics. Requires `adminToken` (ADMIN role).",
+          "item": [
+            {
+              "name": "Dashboard Summary",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/dashboard",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "dashboard"]
+                },
+                "description": "Returns headline KPIs: active users, new subscribers this month, active subscriptions, monthly revenue (EUR), new job listings, and total marketplace listings."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"stats\": [\n      { \"id\": \"active-users\", \"label\": \"Active Users\", \"value\": 1240 },\n      { \"id\": \"new-subscribers\", \"label\": \"New Subscribers\", \"value\": 34 },\n      { \"id\": \"active-subscriptions\", \"label\": \"Active Subscriptions\", \"value\": 310 },\n      { \"id\": \"monthly-revenue\", \"label\": \"Monthly Revenue\", \"value\": 4850.00, \"currency\": \"EUR\" },\n      { \"id\": \"new-jobs\", \"label\": \"New Job Listings\", \"value\": 12 },\n      { \"id\": \"marketplace-listings\", \"label\": \"Marketplace Listings\", \"value\": 520 }\n    ]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Statistics (Annual)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/statistics?year=2026",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "statistics"],
+                  "query": [
+                    {
+                      "key": "year",
+                      "value": "2026",
+                      "description": "4-digit year (defaults to current year)"
+                    }
+                  ]
+                },
+                "description": "Returns a 12-month time series for user growth and revenue, used for analytics charts."
+              }
+            },
+            {
+              "name": "Get All Settings",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/settings",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "settings"]
+                },
+                "description": "Returns all platform configuration key-value pairs."
+              }
+            },
+            {
+              "name": "Get Setting by Key",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/settings/maintenance_mode",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "settings", "maintenance_mode"]
+                },
+                "description": "Fetch a single platform setting by key."
+              }
+            },
+            {
+              "name": "Upsert Setting",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PUT",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/settings/maintenance_mode",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "settings", "maintenance_mode"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"value\": false\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Create or update a platform setting. `value` accepts any valid JSON."
+              }
+            }
+          ]
+        },
+        {
+          "name": "📁 Supplier",
+          "description": "Supplier (Seller) dashboard: their advertisement campaigns and marketplace listings.",
+          "item": [
+            {
+              "name": "My Advertisements",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/advertisements?mine=true&page=1&pageSize=10",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements"],
+                  "query": [
+                    {
+                      "key": "mine",
+                      "value": "true",
+                      "description": "Filter to own ads only"
+                    },
+                    { "key": "page", "value": "1" },
+                    { "key": "pageSize", "value": "10" },
+                    {
+                      "key": "status",
+                      "value": "",
+                      "disabled": true,
+                      "description": "PENDING | ACTIVE | EXPIRED | REJECTED"
+                    },
+                    {
+                      "key": "category",
+                      "value": "",
+                      "disabled": true,
+                      "description": "PRODUCT | SERVICE | PROMO | WEBINAR"
+                    }
+                  ]
+                },
+                "description": "List all advertisements owned by the authenticated supplier."
+              }
+            },
+            {
+              "name": "My Marketplace Listings",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace?mine=true&page=1&pageSize=10",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace"],
+                  "query": [
+                    {
+                      "key": "mine",
+                      "value": "true",
+                      "description": "Filter to own listings only"
+                    },
+                    { "key": "page", "value": "1" },
+                    { "key": "pageSize", "value": "10" }
+                  ]
+                },
+                "description": "List all marketplace listings created by the authenticated supplier."
+              }
+            },
+            {
+              "name": "My Job Postings",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/recruitment?mine=true&page=1&pageSize=10",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment"],
+                  "query": [
+                    { "key": "mine", "value": "true" },
+                    { "key": "page", "value": "1" },
+                    { "key": "pageSize", "value": "10" }
+                  ]
+                },
+                "description": "List recruitment jobs posted by the authenticated supplier."
+              }
+            }
+          ]
+        },
+        {
+          "name": "📁 Customer",
+          "description": "Customer (User) dashboard: profile overview, subscriptions, and activity.",
+          "item": [
+            {
+              "name": "My Profile",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/users/me",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "me"]
+                },
+                "description": "Returns the full profile of the authenticated user."
+              }
+            },
+            {
+              "name": "My Subscription",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/subscriptions/me",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["subscriptions", "me"]
+                },
+                "description": "Returns the current subscription status and plan for the authenticated user."
+              }
+            },
+            {
+              "name": "My Feed Posts",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/feed?mine=true&page=1&pageSize=10",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["feed"],
+                  "query": [
+                    { "key": "mine", "value": "true" },
+                    { "key": "page", "value": "1" },
+                    { "key": "pageSize", "value": "10" }
+                  ]
+                },
+                "description": "List feed posts created by the authenticated user."
+              }
+            },
+            {
+              "name": "My Connections",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/contacts?page=1&pageSize=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "pageSize", "value": "20" },
+                    { "key": "country", "value": "", "disabled": true }
+                  ]
+                },
+                "description": "List accepted connections of the authenticated user."
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "🛡️ Admin",
+      "description": "All endpoints restricted to the ADMIN role. Use `{{adminToken}}` for these requests.",
+      "item": [
+        {
+          "name": "User Management",
+          "item": [
+            {
+              "name": "List All Users",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/users?page=1&pageSize=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "pageSize", "value": "20" },
+                    {
+                      "key": "role",
+                      "value": "",
+                      "disabled": true,
+                      "description": "user | supplier | admin"
+                    },
+                    {
+                      "key": "status",
+                      "value": "",
+                      "disabled": true,
+                      "description": "active | suspended | banned"
+                    },
+                    {
+                      "key": "plan",
+                      "value": "",
+                      "disabled": true,
+                      "description": "free | monthly | yearly"
+                    }
+                  ]
+                },
+                "description": "Paginated list of all users. Supports filtering by `role`, `status`, and subscription `plan`."
+              }
+            },
+            {
+              "name": "Get User by ID",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/users/{{userId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "{{userId}}"]
+                },
+                "description": "Retrieve a specific user's full profile by UUID."
+              }
+            },
+            {
+              "name": "Update User Status",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/users/{{userId}}/status",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "{{userId}}", "status"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"SUSPENDED\",\n  \"reason\": \"Violation of terms of service — spamming other users\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Activate, suspend, or ban a user account. `status` options: `ACTIVE`, `SUSPENDED`, `BANNED`."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Blog Management",
+          "item": [
+            {
+              "name": "Create Blog Post",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/blogs",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["blogs"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"The Future of Lab Automation\",\n  \"category\": \"Technology\",\n  \"excerpt\": \"How automation is reshaping modern laboratory workflows.\",\n  \"body\": \"Full blog content in HTML or Markdown...\",\n  \"image\": \"https://example.com/images/blog-1.jpg\",\n  \"readTime\": \"5 min read\",\n  \"slug\": \"future-of-lab-automation\",\n  \"publish\": true\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Publish a new blog post. `slug` is auto-generated if not provided."
+              }
+            },
+            {
+              "name": "Update Blog Post",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/blogs/{{blogId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["blogs", "{{blogId}}"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Updated: The Future of Lab Automation\",\n  \"publish\": true\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Partially update a blog post. All fields are optional."
+              }
+            },
+            {
+              "name": "Delete Blog Post",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/blogs/{{blogId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["blogs", "{{blogId}}"]
+                },
+                "description": "Permanently delete a blog post by ID."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reports & Moderation",
+          "item": [
+            {
+              "name": "List Reports",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/reports?page=1&pageSize=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reports"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "pageSize", "value": "20" },
+                    {
+                      "key": "status",
+                      "value": "",
+                      "disabled": true,
+                      "description": "pending | under_review | resolved"
+                    }
+                  ]
+                },
+                "description": "Paginated list of all content reports. Filter by `status`."
+              }
+            },
+            {
+              "name": "Report Statistics",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/reports/stats",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reports", "stats"]
+                },
+                "description": "Aggregate stats on reports: totals per status, top violation reasons, etc."
+              }
+            },
+            {
+              "name": "Get Report by ID",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/reports/{{reportId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reports", "{{reportId}}"]
+                },
+                "description": "Get details of a specific report including the target content snippet."
+              }
+            },
+            {
+              "name": "Update Report Status",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/reports/{{reportId}}/status",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reports", "{{reportId}}", "status"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"UNDER_REVIEW\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "`status` options: `PENDING`, `UNDER_REVIEW`, `RESOLVED`."
+              }
+            },
+            {
+              "name": "Moderate Report (Take Action)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/reports/{{reportId}}/moderate",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reports", "{{reportId}}", "moderate"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"action\": \"WARN\",\n  \"note\": \"User warned for spamming. Next violation will result in suspension.\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Apply a moderation action to a report. `action` options: `WARN`, `SUSPEND`, `BAN`, `REMOVE_CONTENT`, `DISMISS`."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Advertisement Review",
+          "item": [
+            {
+              "name": "Review Advertisement",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/advertisements/{{adId}}/review",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements", "{{adId}}", "review"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"ACTIVE\",\n  \"rejectionReason\": \"\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Approve or reject an advertisement submitted by a supplier. `status` options: `ACTIVE`, `REJECTED`, `EXPIRED`. Include `rejectionReason` when rejecting."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Platform Settings",
+          "item": [
+            {
+              "name": "Get All Settings",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/settings",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "settings"]
+                },
+                "description": "Retrieve all platform-wide configuration settings."
+              }
+            },
+            {
+              "name": "Get Setting by Key",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/settings/:key",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "settings", ":key"],
+                  "variable": [
+                    {
+                      "key": "key",
+                      "value": "maintenance_mode",
+                      "description": "Setting key name"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Upsert Setting",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PUT",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/settings/:key",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "settings", ":key"],
+                  "variable": [{ "key": "key", "value": "maintenance_mode" }]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"value\": true\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Create or update a platform setting. `value` accepts any valid JSON scalar or object."
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "🏪 Supplier",
+      "description": "Endpoints specific to the SUPPLIER role. Use `{{sellerToken}}` for these requests.",
+      "item": [
+        {
+          "name": "Advertisements",
+          "item": [
+            {
+              "name": "Create Advertisement",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/advertisements",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"New Centrifuge Model 2026 — Now Available\",\n  \"category\": \"PRODUCT\",\n  \"description\": \"Our latest centrifuge offers 40% faster cycle times with a silent motor.\",\n  \"imageUrl\": \"https://example.com/images/centrifuge.jpg\",\n  \"price\": 2499.99,\n  \"contact\": \"sales@acmelabs.de\",\n  \"location\": \"Munich, Germany\",\n  \"durationDays\": 30\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Submit a new advertisement for admin review. `category`: `PRODUCT`, `SERVICE`, `PROMO`, `WEBINAR`. `durationDays`: `7`, `14`, or `30`. Status starts as `PENDING`."
+              }
+            },
+            {
+              "name": "List Advertisements",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/advertisements?mine=true&page=1&pageSize=10",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements"],
+                  "query": [
+                    { "key": "mine", "value": "true" },
+                    { "key": "page", "value": "1" },
+                    { "key": "pageSize", "value": "10" },
+                    { "key": "status", "value": "", "disabled": true },
+                    { "key": "category", "value": "", "disabled": true }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Advertisement by ID",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/advertisements/{{adId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements", "{{adId}}"]
+                }
+              }
+            },
+            {
+              "name": "Update Advertisement",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/advertisements/{{adId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements", "{{adId}}"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Updated: Centrifuge Model 2026\",\n  \"price\": 2199.99\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Partially update an advertisement. All fields are optional."
+              }
+            },
+            {
+              "name": "Delete Advertisement",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/advertisements/{{adId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements", "{{adId}}"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Marketplace Listings",
+          "item": [
+            {
+              "name": "Create Listing",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Agilent HPLC System 1260 Infinity\",\n  \"description\": \"Excellent condition HPLC system, used for 2 years. Includes all original accessories.\",\n  \"condition\": \"GOOD\",\n  \"category\": \"CHROMATOGRAPHY\",\n  \"year\": 2022,\n  \"price\": 8500,\n  \"location\": \"Berlin, Germany\",\n  \"images\": [\n    \"https://example.com/images/hplc-1.jpg\",\n    \"https://example.com/images/hplc-2.jpg\"\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Create a new marketplace listing. `condition`: `NEW`, `LIKE_NEW`, `GOOD`, `REFURBISHED`, `FOR_PARTS`. `category`: `CHROMATOGRAPHY`, `SPECTROSCOPY`, `INCUBATION`, `CENTRIFUGATION`, `WEIGHING`, `SAFETY`, `CONSUMABLES`, `MICROSCOPY`. `price` is in EUR."
+              }
+            },
+            {
+              "name": "Update Listing",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace/{{listingId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace", "{{listingId}}"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"price\": 7800,\n  \"status\": \"SOLD\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Partially update a listing. `status` options: `ACTIVE`, `SOLD`, `REMOVED`."
+              }
+            },
+            {
+              "name": "Delete Listing",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace/{{listingId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace", "{{listingId}}"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Job Postings",
+          "item": [
+            {
+              "name": "Create Job",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/recruitment",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Senior Laboratory Analyst\",\n  \"company\": \"Acme Labs GmbH\",\n  \"location\": \"Hamburg, Germany\",\n  \"employmentType\": \"FULL_TIME\",\n  \"level\": \"SENIOR\",\n  \"salary\": \"€65,000 – €80,000\",\n  \"applyLink\": \"https://acmelabs.de/careers/apply\",\n  \"imageUrl\": \"https://acmelabs.de/logo.png\",\n  \"about\": \"We are looking for an experienced analyst to join our quality control team...\",\n  \"requirements\": [\n    \"BSc or MSc in Chemistry, Biochemistry or related field\",\n    \"5+ years in a regulated laboratory environment\",\n    \"Experience with HPLC and GC instrumentation\"\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "`employmentType`: `FULL_TIME`, `PART_TIME`, `CONTRACT`, `INTERNSHIP`. `level`: `ENTRY_LEVEL`, `MID_LEVEL`, `SENIOR`."
+              }
+            },
+            {
+              "name": "Update Job",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/recruitment/{{jobId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment", "{{jobId}}"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"CLOSED\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "`status` options: `OPEN`, `CLOSED`, `REMOVED`."
+              }
+            },
+            {
+              "name": "Delete Job",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/recruitment/{{jobId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment", "{{jobId}}"]
+                }
+              }
+            },
+            {
+              "name": "List Job Applications",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/recruitment/{{jobId}}/applications",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment", "{{jobId}}", "applications"]
+                },
+                "description": "List all applications received for a job owned by the authenticated supplier."
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "👤 Customer / User",
+      "description": "Endpoints available to authenticated users (USER, SUPPLIER, ADMIN unless noted). Use `{{accessToken}}`, `{{customerToken}}`, or `{{sellerToken}}`.",
+      "item": [
+        {
+          "name": "Profile",
+          "item": [
+            {
+              "name": "Get My Profile",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/users/me",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "me"]
+                },
+                "description": "Retrieve the full profile of the currently authenticated user."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n    \"firstName\": \"Jane\",\n    \"lastName\": \"Doe\",\n    \"email\": \"jane.doe@example.com\",\n    \"role\": \"USER\",\n    \"status\": \"ACTIVE\",\n    \"title\": \"Lab Manager\",\n    \"company\": \"Acme Labs\",\n    \"country\": \"Germany\",\n    \"about\": \"Experienced laboratory professional.\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update My Profile",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/users/me",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "me"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"firstName\": \"Jane\",\n  \"lastName\": \"Smith\",\n  \"title\": \"Senior Lab Manager\",\n  \"company\": \"Acme Labs GmbH\",\n  \"country\": \"Germany\",\n  \"location\": \"Berlin, Germany\",\n  \"phone\": \"+49123456789\",\n  \"about\": \"15 years in clinical diagnostics and laboratory management.\",\n  \"avatarUrl\": \"https://example.com/avatars/jane.jpg\",\n  \"coverUrl\": \"https://example.com/covers/lab-banner.jpg\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Update the authenticated user's profile. All fields are optional."
+              }
+            },
+            {
+              "name": "Change Password",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/users/me/password",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "me", "password"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"currentPassword\": \"OldSecret123!\",\n  \"newPassword\": \"NewSecret456@\",\n  \"confirmPassword\": \"NewSecret456@\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Change the authenticated user's password. Requires the current password for verification."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Feed",
+          "item": [
+            {
+              "name": "List Feed",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/feed?page=1&pageSize=10",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["feed"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "pageSize", "value": "10" },
+                    {
+                      "key": "type",
+                      "value": "",
+                      "disabled": true,
+                      "description": "question | information | suppliers"
+                    },
+                    {
+                      "key": "mine",
+                      "value": "",
+                      "disabled": true,
+                      "description": "true = only my posts"
+                    }
+                  ]
+                },
+                "description": "Paginated feed of posts. Filter by `type` or show only your own posts with `mine=true`."
+              }
+            },
+            {
+              "name": "Create Post",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/feed",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["feed"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"type\": \"QUESTION\",\n  \"content\": \"Has anyone used the new Thermo Fisher centrifuge series? Looking for real-world feedback.\",\n  \"imageUrl\": \"https://example.com/images/centrifuge-question.jpg\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "`type`: `QUESTION`, `INFORMATION`, `SUPPLIERS`. Max 5000 chars."
+              }
+            },
+            {
+              "name": "Get Post by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/feed/{{postId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["feed", "{{postId}}"]
+                }
+              }
+            },
+            {
+              "name": "Update Post",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/feed/{{postId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["feed", "{{postId}}"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"content\": \"Updated: Has anyone used the new Thermo Fisher centrifuge series? Reviews appreciated!\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                }
+              }
+            },
+            {
+              "name": "Delete Post",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/feed/{{postId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["feed", "{{postId}}"]
+                }
+              }
+            },
+            {
+              "name": "Add Comment",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/feed/{{postId}}/comments",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["feed", "{{postId}}", "comments"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"content\": \"I used it for 6 months — great reliability but the noise level is higher than expected.\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                }
+              }
+            },
+            {
+              "name": "Delete Comment",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/feed/{{postId}}/comments/{{commentId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["feed", "{{postId}}", "comments", "{{commentId}}"]
+                }
+              }
+            },
+            {
+              "name": "React to Post",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/feed/{{postId}}/reactions",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["feed", "{{postId}}", "reactions"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"type\": \"LIKE\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "`type` options: `LIKE`, `LOVE`, `CELEBRATE`, `SUPPORT`, `INSIGHTFUL`, `CURIOUS`. Sending the same reaction again removes it (toggle)."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Connections",
+          "item": [
+            {
+              "name": "List Contacts",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/contacts?page=1&pageSize=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "pageSize", "value": "20" },
+                    {
+                      "key": "country",
+                      "value": "",
+                      "disabled": true,
+                      "description": "Filter by country"
+                    }
+                  ]
+                },
+                "description": "List the authenticated user's accepted connections."
+              }
+            },
+            {
+              "name": "Get Contact by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/contacts/{{connectionId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts", "{{connectionId}}"]
+                }
+              }
+            },
+            {
+              "name": "Send Connection Request",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/contacts/request",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts", "request"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"addresseeId\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Send a connection request to another user."
+              }
+            },
+            {
+              "name": "Accept Connection",
+              "request": {
+                "method": "PATCH",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/contacts/{{connectionId}}/accept",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts", "{{connectionId}}", "accept"]
+                }
+              }
+            },
+            {
+              "name": "Decline Connection",
+              "request": {
+                "method": "PATCH",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/contacts/{{connectionId}}/decline",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts", "{{connectionId}}", "decline"]
+                }
+              }
+            },
+            {
+              "name": "Remove Connection",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/contacts/{{connectionId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts", "{{connectionId}}"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Marketplace",
+          "item": [
+            {
+              "name": "Browse Listings",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace?page=1&pageSize=12",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "pageSize", "value": "12" },
+                    {
+                      "key": "category",
+                      "value": "",
+                      "disabled": true,
+                      "description": "CHROMATOGRAPHY | SPECTROSCOPY | INCUBATION | CENTRIFUGATION | WEIGHING | SAFETY | CONSUMABLES | MICROSCOPY"
+                    },
+                    {
+                      "key": "condition",
+                      "value": "",
+                      "disabled": true,
+                      "description": "NEW | LIKE_NEW | GOOD | REFURBISHED | FOR_PARTS"
+                    },
+                    { "key": "minPrice", "value": "", "disabled": true },
+                    { "key": "maxPrice", "value": "", "disabled": true },
+                    {
+                      "key": "saved",
+                      "value": "",
+                      "disabled": true,
+                      "description": "true = only saved listings"
+                    }
+                  ]
+                },
+                "description": "Browse all active marketplace listings with optional filters."
+              }
+            },
+            {
+              "name": "Get Listing by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace/{{listingId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace", "{{listingId}}"]
+                }
+              }
+            },
+            {
+              "name": "Save / Unsave Listing",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace/{{listingId}}/save",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace", "{{listingId}}", "save"]
+                },
+                "description": "Toggle-save a listing. First call saves it; second call unsaves it."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Recruitment",
+          "item": [
+            {
+              "name": "Browse Jobs",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/recruitment?page=1&pageSize=10",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "pageSize", "value": "10" },
+                    {
+                      "key": "level",
+                      "value": "",
+                      "disabled": true,
+                      "description": "ENTRY_LEVEL | MID_LEVEL | SENIOR"
+                    },
+                    {
+                      "key": "employmentType",
+                      "value": "",
+                      "disabled": true,
+                      "description": "FULL_TIME | PART_TIME | CONTRACT | INTERNSHIP"
+                    },
+                    {
+                      "key": "since",
+                      "value": "",
+                      "disabled": true,
+                      "description": "7d | 30d | 90d"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Job by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/recruitment/{{jobId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment", "{{jobId}}"]
+                }
+              }
+            },
+            {
+              "name": "Apply for Job",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/recruitment/{{jobId}}/apply",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment", "{{jobId}}", "apply"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"coverLetter\": \"I am highly interested in this position. With over 8 years in regulated laboratories, I bring strong expertise in HPLC, GC, and quality systems.\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Submit an application for a job. `coverLetter` is optional (max 4000 chars)."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Messages",
+          "item": [
+            {
+              "name": "List Conversations",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/messages?type=direct",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["messages"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "direct",
+                      "description": "direct | group"
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "disabled": true,
+                      "description": "Search by participant name"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Start Direct Message",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/messages/direct",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["messages", "direct"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"participantId\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n  \"message\": \"Hi! I saw your listing for the Agilent HPLC — is it still available?\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Create a new direct conversation and send the first message."
+              }
+            },
+            {
+              "name": "Create Group Conversation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/messages/group",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["messages", "group"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"HPLC Experts Network\",\n  \"participantIds\": [\n    \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n    \"7b8c9d0e-1f2a-3b4c-5d6e-7f8a9b0c1d2e\"\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                }
+              }
+            },
+            {
+              "name": "Get Messages in Conversation",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/messages/{{conversationId}}/messages?page=1&pageSize=30",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["messages", "{{conversationId}}", "messages"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    {
+                      "key": "pageSize",
+                      "value": "30",
+                      "description": "Max 100"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Send Message",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/messages/{{conversationId}}/messages",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["messages", "{{conversationId}}", "messages"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"body\": \"Yes, the HPLC is still available. Would you like to arrange a viewing?\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Notifications",
+          "item": [
+            {
+              "name": "List Notifications",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/notifications?page=1&pageSize=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["notifications"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "pageSize", "value": "20" },
+                    {
+                      "key": "unread",
+                      "value": "",
+                      "disabled": true,
+                      "description": "true = only unread"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Mark All as Read",
+              "request": {
+                "method": "PATCH",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/notifications/read-all",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["notifications", "read-all"]
+                }
+              }
+            },
+            {
+              "name": "Mark Notification as Read",
+              "request": {
+                "method": "PATCH",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/notifications/{{notificationId}}/read",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["notifications", "{{notificationId}}", "read"]
+                }
+              }
+            },
+            {
+              "name": "Delete Notification",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/notifications/{{notificationId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["notifications", "{{notificationId}}"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Subscriptions",
+          "item": [
+            {
+              "name": "Get My Subscription",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/subscriptions/me",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["subscriptions", "me"]
+                },
+                "description": "Returns the current subscription plan and status for the authenticated user."
+              }
+            },
+            {
+              "name": "Subscribe to Plan",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/subscriptions/subscribe",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["subscriptions", "subscribe"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"plan\": \"MONTHLY\",\n  \"paymentMethod\": \"card_1234567890\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "`plan` options: `MONTHLY`, `YEARLY`."
+              }
+            },
+            {
+              "name": "Cancel Subscription",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/subscriptions/cancel",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["subscriptions", "cancel"]
+                },
+                "description": "Cancel the authenticated user's active subscription."
+              }
+            }
+          ]
+        },
+        {
+          "name": "General Posts",
+          "item": [
+            {
+              "name": "List General Posts",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/general?page=1&pageSize=10",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["general"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "pageSize", "value": "10" },
+                    {
+                      "key": "type",
+                      "value": "",
+                      "disabled": true,
+                      "description": "news | document"
+                    },
+                    { "key": "mine", "value": "", "disabled": true }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create General Post",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/general",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["general"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"type\": \"NEWS\",\n  \"title\": \"New EU Regulation on Laboratory Safety Equipment Published\",\n  \"summary\": \"The European Commission has published updated safety requirements for personal protective equipment in laboratory environments, effective January 2027.\",\n  \"category\": \"Regulations\",\n  \"source\": \"European Commission\",\n  \"imageUrl\": \"https://example.com/images/eu-regulation.jpg\",\n  \"body\": [\n    \"The new regulation covers PPE standards including gloves, goggles, and lab coats.\",\n    \"All certified PPE must carry the updated CE mark from January 2027.\"\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "`type`: `NEWS` or `DOCUMENT`. For `DOCUMENT` type, `documentUrl` is required."
+              }
+            },
+            {
+              "name": "Get General Post by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/general/{{generalPostId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["general", "{{generalPostId}}"]
+                }
+              }
+            },
+            {
+              "name": "Update General Post",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/general/{{generalPostId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["general", "{{generalPostId}}"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"summary\": \"Updated summary with additional regulatory details.\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                }
+              }
+            },
+            {
+              "name": "Delete General Post",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/general/{{generalPostId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["general", "{{generalPostId}}"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Advertisements (Browse)",
+          "item": [
+            {
+              "name": "Browse Active Advertisements",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/advertisements/active?page=1&pageSize=10",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements", "active"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "pageSize", "value": "10" },
+                    {
+                      "key": "category",
+                      "value": "",
+                      "disabled": true,
+                      "description": "PRODUCT | SERVICE | PROMO | WEBINAR"
+                    }
+                  ]
+                },
+                "description": "Returns only `ACTIVE` advertisements visible to all authenticated users."
+              }
+            },
+            {
+              "name": "Track Ad Engagement",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/advertisements/{{adId}}/track/:metric",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements", "{{adId}}", "track", ":metric"],
+                  "variable": [
+                    {
+                      "key": "metric",
+                      "value": "click",
+                      "description": "Engagement metric name (e.g. click, view)"
+                    }
+                  ]
+                },
+                "description": "Track an engagement event (e.g. `view`, `click`) for an active advertisement."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reports",
+          "item": [
+            {
+              "name": "Submit Report",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/reports",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reports"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"targetType\": \"POST\",\n  \"targetId\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n  \"reason\": \"SPAM\",\n  \"targetSnippet\": \"Buy cheap medication at...\",\n  \"reasonDetail\": \"This post appears to be commercial spam unrelated to laboratory topics.\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Any authenticated user can report content. `targetType`: `POST`, `COMMENT`, `LISTING`, `JOB`, `GENERAL_POST`, `USER`. `reason`: `HARASSMENT`, `FRAUD_OR_SCAM`, `SPAM`, `MISINFORMATION`, `HATEFUL_SPEECH`, `THREATS_OR_VIOLENCE`, `SELF_HARM`, `EXTREMIST_ORGANIZATIONS`, `GRAPHIC_CONTENT`, `SEXUAL_CONTENT`, `FAKE_ACCOUNT`, `CHILD_EXPLOITATION`, `RESTRICTED_GOODS`, `NONCONSENSUAL_IMAGERY`."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Uploads",
+          "item": [
+            {
+              "name": "Upload Single File",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/uploads",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["uploads"]
+                },
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": "",
+                      "description": "Select a file to upload (images, documents, etc). Max 50 MB."
+                    }
+                  ]
+                },
+                "description": "Upload a single file. Returns a public URL for the uploaded file. Use the returned URL in fields like `imageUrl`, `documentUrl`, `avatarUrl`, etc."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"url\": \"http://localhost:4000/uploads/1693000000000-file.jpg\",\n    \"filename\": \"1693000000000-file.jpg\",\n    \"mimetype\": \"image/jpeg\",\n    \"size\": 204800\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Upload Multiple Files",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/uploads/multiple",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["uploads", "multiple"]
+                },
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "files",
+                      "type": "file",
+                      "src": [],
+                      "description": "Select up to 12 files."
+                    }
+                  ]
+                },
+                "description": "Upload up to 12 files in a single request. Returns an array of public URLs."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"urls\": [\n      \"http://localhost:4000/uploads/1693000000000-img1.jpg\",\n      \"http://localhost:4000/uploads/1693000000001-img2.jpg\"\n    ]\n  }\n}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
