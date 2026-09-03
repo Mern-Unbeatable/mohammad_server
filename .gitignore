@@ -3,6 +3,6 @@ dist/
 .env
 .env.local
 *.log
-uploads/
+
 coverage/
 .DS_Store
