@@ -17,8 +17,32 @@ import { uploadsRoutes } from "@/modules/uploads/uploads.routes";
 
 export const apiRouter = Router();
 
+apiRouter.get("/", (_req, res) => {
+  const environment = process.env.NODE_ENV ?? "development";
+
+  res.json({
+    success: true,
+    api: {
+      version: "v1",
+      status: "operational",
+      basePath: "/api/v1",
+      health: "/api/v1/health",
+      environment,
+      uptime: Number(process.uptime().toFixed(2)),
+    },
+  });
+});
+
 apiRouter.get("/health", (_req, res) => {
-  res.json({ success: true, data: { status: "ok", uptime: process.uptime() } });
+  res.json({
+    success: true,
+    data: {
+      status: "ok",
+      uptime: Number(process.uptime().toFixed(2)),
+      environment: process.env.NODE_ENV ?? "development",
+      timestamp: new Date().toISOString(),
+    },
+  });
 });
 
 apiRouter.use("/auth", authRoutes);
