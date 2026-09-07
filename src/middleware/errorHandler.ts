@@ -4,7 +4,6 @@ import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 import { JsonWebTokenError, TokenExpiredError } from "jsonwebtoken";
 import { AppError } from "@/shared/errors/AppError";
-import { env } from "@/config/env";
 import { logger } from "@/config/logger";
 
 interface NormalizedError {
@@ -97,9 +96,6 @@ export const errorHandler = (
       code: normalized.code,
       message: normalized.message,
       ...(normalized.details ? { details: normalized.details } : {}),
-      ...(env.isProduction
-        ? {}
-        : { stack: err instanceof Error ? err.stack : undefined }),
     },
   });
 };
