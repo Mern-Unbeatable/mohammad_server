@@ -1,21 +1,27 @@
 import { Router } from "express";
 import { authRoutes } from "@/modules/auth/auth.routes";
-import { usersRoutes } from "@/modules/users/users.routes";
-import { connectionsRoutes } from "@/modules/connections/connections.routes";
-import { feedRoutes } from "@/modules/feed/feed.routes";
-import { marketplaceRoutes } from "@/modules/marketplace/marketplace.routes";
-import { recruitmentRoutes } from "@/modules/recruitment/recruitment.routes";
-import { generalRoutes } from "@/modules/general/general.routes";
-import { blogsRoutes } from "@/modules/blogs/blogs.routes";
-import { messagesRoutes } from "@/modules/messages/messages.routes";
-import { notificationsRoutes } from "@/modules/notifications/notifications.routes";
-import { advertisementsRoutes } from "@/modules/advertisements/advertisements.routes";
-import { reportsRoutes } from "@/modules/reports/reports.routes";
-import { subscriptionsRoutes } from "@/modules/subscriptions/subscriptions.routes";
-import { adminRoutes } from "@/modules/admin/admin.routes";
+import { routes as profileRoutes } from "@/modules/user/profile";
+import { routes as adminUsersRoutes } from "@/modules/admin/users";
+import { routes as contactsRoutes } from "@/modules/supplier/contacts";
+import { routes as feedRoutes } from "@/modules/user/feed";
+import { routes as marketplaceRoutes } from "@/modules/user/marketplace";
+import { routes as recruitmentRoutes } from "@/modules/user/recruitment";
+import { routes as generalRoutes } from "@/modules/user/general";
+import { routes as blogsRoutes } from "@/modules/admin/blogs";
+import { routes as messagesRoutes } from "@/modules/user/messages";
+import { routes as notificationsRoutes } from "@/modules/supplier/notifications";
+import { routes as advertisementsRoutes } from "@/modules/supplier/advertisements";
+import { routes as reportsRoutes } from "@/modules/admin/reports";
+import { routes as subscriptionsRoutes } from "@/modules/user/subscriptions";
+import { routes as adminRoutes } from "@/modules/admin";
 import { uploadsRoutes } from "@/modules/uploads/uploads.routes";
 
 export const apiRouter = Router();
+
+/** Compose /users from profile (/me*) + admin user management. */
+const usersRoutes = Router();
+usersRoutes.use(profileRoutes);
+usersRoutes.use(adminUsersRoutes);
 
 apiRouter.get("/", (_req, res) => {
   const environment = process.env.NODE_ENV ?? "development";
@@ -27,9 +33,9 @@ apiRouter.get("/", (_req, res) => {
       status: "operational",
       basePath: "/api/v1",
       health: "/api/v1/health",
-      environment,
-      uptime: Number(process.uptime().toFixed(2)),
     },
+    environment,
+    uptime: Number(process.uptime().toFixed(2)),
   });
 });
 
@@ -47,7 +53,7 @@ apiRouter.get("/health", (_req, res) => {
 
 apiRouter.use("/auth", authRoutes);
 apiRouter.use("/users", usersRoutes);
-apiRouter.use("/contacts", connectionsRoutes);
+apiRouter.use("/contacts", contactsRoutes);
 apiRouter.use("/feed", feedRoutes);
 apiRouter.use("/marketplace", marketplaceRoutes);
 apiRouter.use("/recruitment", recruitmentRoutes);
