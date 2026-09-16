@@ -43,6 +43,7 @@ export const feedController = {
       req.params.id,
       req.user!.id,
       req.body.content,
+      req.body.parentCommentId,
     );
     sendSuccess(res, { statusCode: StatusCodes.CREATED, data });
   }),

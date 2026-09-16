@@ -42,6 +42,7 @@ export const updatePostSchema = z.object({
 
 export const createCommentSchema = z.object({
   content: z.string().trim().min(1).max(2000),
+  parentCommentId: z.string().uuid().optional().nullable(),
 });
 
 /** Accepts UI ids or legacy uppercase enums; stores normalized lowercase text. */

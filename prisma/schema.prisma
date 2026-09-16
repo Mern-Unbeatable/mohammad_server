@@ -347,17 +347,21 @@ model FeedPost {
 }
 
 model FeedComment {
-  id        String   @id @default(uuid())
-  postId    String
-  post      FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  content   String
-  createdAt DateTime @default(now())
+  id              String   @id @default(uuid())
+  postId          String
+  post            FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId        String
+  author          User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content         String
+  parentCommentId String?
+  parent          FeedComment?  @relation("CommentThread", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies         FeedComment[] @relation("CommentThread")
+  createdAt       DateTime @default(now())
 
   likes FeedCommentLike[]
 
   @@index([postId])
+  @@index([parentCommentId])
 }
 
 model FeedCommentLike {
