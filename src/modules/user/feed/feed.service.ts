@@ -30,7 +30,7 @@ const getPostInclude = (viewerId?: string) =>
   ({
     author: { include: { profile: true } },
     comments: {
-      orderBy: { createdAt: "desc" as const },
+      orderBy: { createdAt: "asc" as const },
       include: getCommentInclude(viewerId),
     },
     _count: { select: { reactions: true, comments: true } },
@@ -116,12 +116,12 @@ const buildCommentTree = (flat: SerializedComment[]): SerializedComment[] => {
     }
   }
 
-  const byNewest = (a: SerializedComment, b: SerializedComment) =>
-    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  const byOldest = (a: SerializedComment, b: SerializedComment) =>
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
 
-  roots.sort(byNewest);
+  roots.sort(byOldest);
   for (const root of roots) {
-    root.replies.sort(byNewest);
+    root.replies.sort(byOldest);
     root.replyCount = root.replies.length;
     for (const reply of root.replies) {
       reply.replies = [];
