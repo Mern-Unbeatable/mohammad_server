@@ -104,6 +104,7 @@ export const authService = {
           create: {
             plan: "FREE",
             status: SubscriptionStatus.TRIAL,
+            startDate: new Date(),
             trialDaysLeft: 90,
             trialDaysTotal: 90,
           },

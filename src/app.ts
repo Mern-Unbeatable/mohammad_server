@@ -10,6 +10,7 @@ import { apiRouter } from "@/routes";
 import { errorHandler } from "@/middleware/errorHandler";
 import { notFoundHandler } from "@/middleware/notFound";
 import { globalRateLimiter } from "@/middleware/rateLimit";
+import { subscriptionsController } from "@/modules/user/subscriptions/subscriptions.controller";
 
 export const createApp = (): Application => {
   const app = express();
@@ -28,6 +29,14 @@ export const createApp = (): Application => {
     }),
   );
   app.use(compression());
+
+  // Stripe webhooks require the raw body for signature verification.
+  app.post(
+    `${env.apiPrefix}/subscriptions/webhook`,
+    express.raw({ type: "application/json" }),
+    subscriptionsController.webhook,
+  );
+
   app.use(express.json({ limit: "2mb" }));
   app.use(express.urlencoded({ extended: true }));
   app.use(pinoHttp({ logger }));

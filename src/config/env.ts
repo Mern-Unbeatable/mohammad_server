@@ -64,6 +64,14 @@ export const env = {
     ),
     max: toNumber(optional("RATE_LIMIT_MAX", "300"), "RATE_LIMIT_MAX"),
   },
+  stripe: {
+    secretKey: optional("STRIPE_SECRET_KEY", ""),
+    publishableKey: optional("STRIPE_PUBLISHABLE_KEY", ""),
+    webhookSecret: optional("STRIPE_WEBHOOK_SECRET", ""),
+    priceMonthly: optional("STRIPE_PRICE_MONTHLY", ""),
+    priceYearly: optional("STRIPE_PRICE_YEARLY", ""),
+    clientUrl: optional("CLIENT_URL", "http://localhost:5173"),
+  },
 } as const;
 
 export type Env = typeof env;

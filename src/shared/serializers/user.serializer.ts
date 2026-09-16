@@ -1,4 +1,5 @@
 import { Prisma, Profile, Subscription, User } from "@prisma/client";
+import { deriveSubscriptionState } from "@/modules/user/subscriptions/subscriptionLifecycle";
 
 type UserWithRelations = User & {
   profile?: Profile | null;
@@ -38,18 +39,25 @@ export const serializeProfile = (profile: Profile) => ({
   connections: profile.connectionsCount,
 });
 
-export const serializeSubscription = (subscription: Subscription) => ({
-  plan: subscription.plan,
-  status: subscription.status,
-  amount: subscription.amount / 100,
-  billingCycle: subscription.billingCycle,
-  startDate: subscription.startDate,
-  renewalDate: subscription.renewalDate,
-  nextPayment: subscription.nextPayment,
-  paymentMethod: subscription.paymentMethod,
-  trialDaysLeft: subscription.trialDaysLeft,
-  trialDaysTotal: subscription.trialDaysTotal,
-});
+export const serializeSubscription = (subscription: Subscription) => {
+  const derived = deriveSubscriptionState(subscription);
+
+  return {
+    plan: subscription.plan,
+    status: derived.status,
+    amount: subscription.amount / 100,
+    billingCycle: subscription.billingCycle,
+    startDate: subscription.startDate,
+    renewalDate: subscription.renewalDate,
+    nextPayment: subscription.nextPayment,
+    paymentMethod: subscription.paymentMethod,
+    trialDaysLeft: derived.trialDaysLeft,
+    trialDaysTotal: derived.trialDaysTotal,
+    isActive: derived.isActive,
+    accessEndsAt: derived.accessEndsAt,
+    cancelAtPeriodEnd: derived.cancelAtPeriodEnd,
+  };
+};
 
 export const userWithRelations = {
   profile: true,
