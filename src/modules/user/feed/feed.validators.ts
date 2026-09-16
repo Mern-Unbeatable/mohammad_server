@@ -6,12 +6,22 @@ export const feedListQuerySchema = paginationQuerySchema.extend({
   mine: z.coerce.boolean().optional(),
 });
 
-export const createPostSchema = z.object({
-  type: z.enum(["QUESTION", "INFORMATION", "SUPPLIERS"]).default("INFORMATION"),
-  content: z.string().trim().min(1).max(5000),
-  imageUrl: z.string().url().optional(),
-  documentUrl: z.string().url().optional(),
-});
+export const createPostSchema = z
+  .object({
+    type: z.enum(["QUESTION", "INFORMATION", "SUPPLIERS"]).default("INFORMATION"),
+    content: z.string().trim().max(5000).optional().default(""),
+    imageUrl: z.string().url().optional(),
+    documentUrl: z.string().url().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.content && !data.imageUrl && !data.documentUrl) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Post must include content, an image, or a document",
+        path: ["content"],
+      });
+    }
+  });
 
 export const updatePostSchema = z.object({
   content: z.string().trim().min(1).max(5000).optional(),
