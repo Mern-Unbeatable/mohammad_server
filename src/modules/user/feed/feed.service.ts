@@ -14,7 +14,7 @@ const TYPE_MAP: Record<string, FeedPostType> = {
 const postInclude = {
   author: { include: { profile: true } },
   comments: {
-    orderBy: { createdAt: "asc" as const },
+    orderBy: { createdAt: "desc" as const },
     include: { author: { include: { profile: true } } },
   },
   _count: { select: { reactions: true, comments: true } },
