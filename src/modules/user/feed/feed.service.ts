@@ -71,10 +71,6 @@ const serializeCommentFlat = (comment: CommentPayload): SerializedComment => {
       ? comment._count.likes
       : 0;
   const liked = likeRows.length > 0;
-  const replyCount =
-    "_count" in comment && comment._count && "replies" in comment._count
-      ? comment._count.replies
-      : 0;
 
   return {
     id: comment.id,
@@ -85,38 +81,53 @@ const serializeCommentFlat = (comment: CommentPayload): SerializedComment => {
     likeCount,
     liked,
     isLiked: liked,
-    replyCount,
+    replyCount: 0,
     replies: [],
   };
 };
 
+/** Build threads with max_depth = 1 (all replies hang under the root). */
 const buildCommentTree = (flat: SerializedComment[]): SerializedComment[] => {
-  const nodes = new Map<string, SerializedComment>();
-  for (const comment of flat) {
-    nodes.set(comment.id, { ...comment, replies: [] });
-  }
-
+  const byId = new Map(flat.map((c) => [c.id, { ...c, replies: [] as SerializedComment[] }]));
   const roots: SerializedComment[] = [];
+
+  const resolveRootId = (commentId: string): string => {
+    let current = byId.get(commentId);
+    let guard = 0;
+    while (current?.parentCommentId && byId.has(current.parentCommentId) && guard < 50) {
+      current = byId.get(current.parentCommentId);
+      guard += 1;
+    }
+    return current?.id ?? commentId;
+  };
+
   for (const comment of flat) {
-    const node = nodes.get(comment.id)!;
-    if (comment.parentCommentId && nodes.has(comment.parentCommentId)) {
-      nodes.get(comment.parentCommentId)!.replies.push(node);
+    const node = byId.get(comment.id)!;
+    if (!comment.parentCommentId || !byId.has(comment.parentCommentId)) {
+      roots.push(node);
+      continue;
+    }
+    const rootId = resolveRootId(comment.parentCommentId);
+    const root = byId.get(rootId);
+    if (root && root.id !== node.id) {
+      root.replies.push(node);
     } else {
       roots.push(node);
     }
   }
 
-  const sortNodes = (list: SerializedComment[]) => {
-    list.sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
-    for (const node of list) {
-      node.replyCount = node.replies.length;
-      sortNodes(node.replies);
+  const byNewest = (a: SerializedComment, b: SerializedComment) =>
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+
+  roots.sort(byNewest);
+  for (const root of roots) {
+    root.replies.sort(byNewest);
+    root.replyCount = root.replies.length;
+    for (const reply of root.replies) {
+      reply.replies = [];
+      reply.replyCount = 0;
     }
-  };
-  sortNodes(roots);
+  }
   return roots;
 };
 
@@ -314,7 +325,8 @@ export const feedService = {
       if (!parent || parent.postId !== postId) {
         throw new NotFoundError("Parent comment not found");
       }
-      resolvedParentId = parent.id;
+      // max_depth = 1: always attach under the root comment
+      resolvedParentId = parent.parentCommentId ?? parent.id;
     }
 
     const comment = await prisma.feedComment.create({
