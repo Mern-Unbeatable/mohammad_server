@@ -219,6 +219,7 @@ model User {
   feedPosts            FeedPost[]
   feedComments         FeedComment[]
   feedReactions        FeedReaction[]
+  feedCommentLikes     FeedCommentLike[]
   listings             Listing[]
   savedListings        SavedListing[]
   jobs                 Job[]
@@ -354,7 +355,22 @@ model FeedComment {
   content   String
   createdAt DateTime @default(now())
 
+  likes FeedCommentLike[]
+
   @@index([postId])
+}
+
+model FeedCommentLike {
+  id        String      @id @default(uuid())
+  commentId String
+  comment   FeedComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+
+  @@unique([commentId, userId])
+  @@index([commentId])
+  @@index([userId])
 }
 
 model FeedReaction {

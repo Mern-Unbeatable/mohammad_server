@@ -57,6 +57,15 @@ export const feedController = {
     sendSuccess(res, { data: { message: "Comment deleted" } });
   }),
 
+  likeComment: asyncHandler(async (req: Request, res: Response) => {
+    const data = await feedService.likeComment(
+      req.params.id,
+      req.params.commentId,
+      req.user!.id,
+    );
+    sendSuccess(res, { data });
+  }),
+
   react: asyncHandler(async (req: Request, res: Response) => {
     const data = await feedService.react(
       req.params.id,

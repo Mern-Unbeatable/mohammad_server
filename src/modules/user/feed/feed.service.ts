@@ -11,16 +11,33 @@ const TYPE_MAP: Record<string, FeedPostType> = {
   suppliers: FeedPostType.SUPPLIERS,
 };
 
-const postInclude = {
-  author: { include: { profile: true } },
-  comments: {
-    orderBy: { createdAt: "desc" as const },
-    include: { author: { include: { profile: true } } },
-  },
-  _count: { select: { reactions: true, comments: true } },
-} satisfies Prisma.FeedPostInclude;
+const getPostInclude = (viewerId?: string) =>
+  ({
+    author: { include: { profile: true } },
+    comments: {
+      orderBy: { createdAt: "desc" as const },
+      include: {
+        author: { include: { profile: true } },
+        _count: { select: { likes: true } },
+        ...(viewerId
+          ? {
+              likes: {
+                where: { userId: viewerId },
+                select: { id: true },
+                take: 1,
+              },
+            }
+          : {}),
+      },
+    },
+    _count: { select: { reactions: true, comments: true } },
+  }) satisfies Prisma.FeedPostInclude;
 
-type PostPayload = Prisma.FeedPostGetPayload<{ include: typeof postInclude }>;
+type PostPayload = Prisma.FeedPostGetPayload<{
+  include: ReturnType<typeof getPostInclude>;
+}>;
+
+type CommentPayload = PostPayload["comments"][number];
 
 const serializeAuthor = (user: {
   id: string;
@@ -30,6 +47,25 @@ const serializeAuthor = (user: {
   ...(user.profile ? serializeProfile(user.profile) : {}),
 });
 
+const serializeComment = (comment: CommentPayload) => {
+  const likeRows =
+    "likes" in comment && Array.isArray(comment.likes) ? comment.likes : [];
+  const likeCount =
+    "_count" in comment && comment._count && "likes" in comment._count
+      ? comment._count.likes
+      : 0;
+  const liked = likeRows.length > 0;
+
+  return {
+    id: comment.id,
+    content: comment.content,
+    createdAt: comment.createdAt,
+    author: serializeAuthor(comment.author),
+    likeCount,
+    liked,
+    isLiked: liked,
+  };
+};
 const serializePost = (
   post: PostPayload,
   myReaction: ReactionType | null = null,
@@ -56,12 +92,7 @@ const serializePost = (
     comments: post._count.comments,
     shares: 0,
   },
-  comments: post.comments.map((c) => ({
-    id: c.id,
-    content: c.content,
-    createdAt: c.createdAt,
-    author: serializeAuthor(c.author),
-  })),
+  comments: post.comments.map(serializeComment),
 });
 
 const emptyReactionCounts = (): Record<ReactionType, number> => ({
@@ -115,7 +146,7 @@ export const feedService = {
     const [rows, total] = await prisma.$transaction([
       prisma.feedPost.findMany({
         where,
-        include: postInclude,
+        include: getPostInclude(userId),
         orderBy: { createdAt: query.sort },
         skip,
         take,
@@ -156,7 +187,7 @@ export const feedService = {
   async getById(id: string, userId?: string) {
     const post = await prisma.feedPost.findUnique({
       where: { id },
-      include: postInclude,
+      include: getPostInclude(userId),
     });
     if (!post) throw new NotFoundError("Post not found");
 
@@ -184,7 +215,7 @@ export const feedService = {
   ) {
     const post = await prisma.feedPost.create({
       data: { authorId, ...input },
-      include: postInclude,
+      include: getPostInclude(authorId),
     });
     return serializePost(post);
   },
@@ -198,7 +229,7 @@ export const feedService = {
     const updated = await prisma.feedPost.update({
       where: { id },
       data: input,
-      include: postInclude,
+      include: getPostInclude(userId),
     });
     return serializePost(updated);
   },
@@ -237,6 +268,9 @@ export const feedService = {
       content: comment.content,
       createdAt: comment.createdAt,
       author: serializeAuthor(comment.author),
+      likeCount: 0,
+      liked: false,
+      isLiked: false,
     };
   },
 
@@ -255,6 +289,42 @@ export const feedService = {
       throw new ForbiddenError("You can only delete your own comments");
     }
     await prisma.feedComment.delete({ where: { id: commentId } });
+  },
+
+  /** Toggle like on a comment — one like per user via unique (commentId, userId). */
+  async likeComment(postId: string, commentId: string, userId: string) {
+    const comment = await prisma.feedComment.findUnique({
+      where: { id: commentId },
+    });
+    if (!comment || comment.postId !== postId) {
+      throw new NotFoundError("Comment not found");
+    }
+
+    const existing = await prisma.feedCommentLike.findUnique({
+      where: { commentId_userId: { commentId, userId } },
+    });
+
+    let liked: boolean;
+    if (existing) {
+      await prisma.feedCommentLike.delete({ where: { id: existing.id } });
+      liked = false;
+    } else {
+      await prisma.feedCommentLike.create({
+        data: { commentId, userId },
+      });
+      liked = true;
+    }
+
+    const likeCount = await prisma.feedCommentLike.count({
+      where: { commentId },
+    });
+
+    return {
+      commentId,
+      liked,
+      isLiked: liked,
+      likeCount,
+    };
   },
 
   /** Toggle reaction: sets the type, or removes it if the same type is repeated. */

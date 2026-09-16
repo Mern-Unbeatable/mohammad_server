@@ -44,6 +44,11 @@ router.delete(
   validate({ params: commentParamSchema }),
   feedController.removeComment,
 );
+router.post(
+  "/:id/comments/:commentId/like",
+  validate({ params: commentParamSchema }),
+  feedController.likeComment,
+);
 
 router.post(
   "/:id/reactions",
