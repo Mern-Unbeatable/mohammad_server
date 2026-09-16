@@ -63,4 +63,12 @@ export const recruitmentController = {
     );
     sendSuccess(res, { data });
   }),
+
+  listMyApplications: asyncHandler(async (req: Request, res: Response) => {
+    const result = await recruitmentService.listMyApplications(
+      req.user!.id,
+      req.query as never,
+    );
+    sendSuccess(res, { data: result.data, meta: result.meta });
+  }),
 };

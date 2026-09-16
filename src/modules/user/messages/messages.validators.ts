@@ -22,6 +22,11 @@ export const sendMessageSchema = z.object({
 
 export const conversationIdParamSchema = z.object({ id: z.string().uuid() });
 
+export const messageIdParamSchema = z.object({
+  id: z.string().uuid(),
+  messageId: z.string().uuid(),
+});
+
 export const messageListQuerySchema = paginationQuerySchema.extend({
   pageSize: z.coerce.number().int().positive().max(100).default(30),
 });

@@ -222,4 +222,39 @@ export const messagesService = {
       time: message.createdAt,
     };
   },
+
+  /** Leave a conversation (removes participant row). */
+  async leave(userId: string, conversationId: string) {
+    await assertMembership(conversationId, userId);
+    await prisma.conversationParticipant.delete({
+      where: { conversationId_userId: { conversationId, userId } },
+    });
+
+    const remaining = await prisma.conversationParticipant.count({
+      where: { conversationId },
+    });
+    if (remaining === 0) {
+      await prisma.conversation.delete({ where: { id: conversationId } });
+    }
+
+    return { message: "Left conversation" };
+  },
+
+  /** Delete own message. */
+  async deleteMessage(
+    userId: string,
+    conversationId: string,
+    messageId: string,
+  ) {
+    await assertMembership(conversationId, userId);
+    const message = await prisma.message.findFirst({
+      where: { id: messageId, conversationId },
+    });
+    if (!message) throw new NotFoundError("Message not found");
+    if (message.senderId !== userId) {
+      throw new ForbiddenError("You can only delete your own messages");
+    }
+    await prisma.message.delete({ where: { id: messageId } });
+    return { message: "Message deleted" };
+  },
 };

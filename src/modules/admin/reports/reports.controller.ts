@@ -20,6 +20,14 @@ export const reportsController = {
     sendSuccess(res, { data: result.data, meta: result.meta });
   }),
 
+  listMine: asyncHandler(async (req: Request, res: Response) => {
+    const result = await reportsService.listMine(
+      req.user!.id,
+      req.query as never,
+    );
+    sendSuccess(res, { data: result.data, meta: result.meta });
+  }),
+
   stats: asyncHandler(async (_req: Request, res: Response) => {
     const data = await reportsService.stats();
     sendSuccess(res, { data });

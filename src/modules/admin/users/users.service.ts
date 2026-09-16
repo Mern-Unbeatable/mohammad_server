@@ -2,6 +2,7 @@ import { Prisma, Role, UserStatus } from "@prisma/client";
 import { prisma } from "@/infrastructure/prisma";
 import { NotFoundError } from "@/shared/errors/AppError";
 import {
+  serializeProfile,
   serializeUser,
   userWithRelations,
 } from "@/shared/serializers/user.serializer";
@@ -72,12 +73,26 @@ export const usersService = {
     };
   },
 
-  async getUserById(id: string) {
+  async getUserById(id: string, viewerRole?: string) {
     const user = await prisma.user.findUnique({
       where: { id },
       include: userWithRelations,
     });
     if (!user) throw new NotFoundError("User not found");
+
+    // Non-admins may only view ACTIVE members (public profile).
+    if (viewerRole !== "ADMIN") {
+      if (user.status !== UserStatus.ACTIVE) {
+        throw new NotFoundError("User not found");
+      }
+      return {
+        id: user.id,
+        role: user.role,
+        profileType: user.profileType,
+        profile: user.profile ? serializeProfile(user.profile) : null,
+      };
+    }
+
     return serializeUser(user);
   },
 

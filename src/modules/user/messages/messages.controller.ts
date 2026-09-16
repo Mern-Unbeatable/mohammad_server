@@ -48,4 +48,18 @@ export const messagesController = {
     );
     sendSuccess(res, { statusCode: StatusCodes.CREATED, data });
   }),
+
+  leave: asyncHandler(async (req: Request, res: Response) => {
+    const data = await messagesService.leave(req.user!.id, req.params.id);
+    sendSuccess(res, { data });
+  }),
+
+  deleteMessage: asyncHandler(async (req: Request, res: Response) => {
+    const data = await messagesService.deleteMessage(
+      req.user!.id,
+      req.params.id,
+      req.params.messageId,
+    );
+    sendSuccess(res, { data });
+  }),
 };

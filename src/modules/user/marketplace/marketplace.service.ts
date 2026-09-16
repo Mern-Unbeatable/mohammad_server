@@ -1,6 +1,6 @@
 import { ListingStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/infrastructure/prisma";
-import { ForbiddenError, NotFoundError } from "@/shared/errors/AppError";
+import { ForbiddenError, NotFoundError, BadRequestError } from "@/shared/errors/AppError";
 import { buildPaginationMeta } from "@/shared/http/apiResponse";
 import { toPrismaPagination } from "@/shared/http/pagination";
 import { serializeProfile } from "@/shared/serializers/user.serializer";
@@ -178,5 +178,35 @@ export const marketplaceService = {
     }
     await prisma.savedListing.create({ data: { userId, listingId } });
     return { saved: true };
+  },
+
+  /** Notify the seller about a listing enquiry (uses LISTING_ENQUIRY). */
+  async enquire(userId: string, listingId: string, message: string) {
+    const listing = await prisma.listing.findUnique({
+      where: { id: listingId },
+      include: listingInclude,
+    });
+    if (!listing || listing.status !== ListingStatus.ACTIVE) {
+      throw new NotFoundError("Listing not found");
+    }
+    if (listing.sellerId === userId) {
+      throw new BadRequestError("You cannot enquire about your own listing");
+    }
+
+    await prisma.notification.create({
+      data: {
+        userId: listing.sellerId,
+        type: "LISTING_ENQUIRY",
+        title: "Listing enquiry",
+        subtitle: message.slice(0, 200),
+        link: `/marketplace/${listingId}`,
+      },
+    });
+
+    return {
+      listingId,
+      sellerId: listing.sellerId,
+      message: "Enquiry sent",
+    };
   },
 };

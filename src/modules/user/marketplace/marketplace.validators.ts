@@ -45,4 +45,8 @@ export const updateListingSchema = createListingSchema.partial().extend({
 
 export const listingIdParamSchema = z.object({ id: z.string().uuid() });
 
+export const enquireListingSchema = z.object({
+  message: z.string().trim().min(1).max(2000),
+});
+
 export type ListingListQuery = z.infer<typeof listingListQuerySchema>;

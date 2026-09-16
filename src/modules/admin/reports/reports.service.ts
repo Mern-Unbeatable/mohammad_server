@@ -113,6 +113,41 @@ export const reportsService = {
     };
   },
 
+  /** Reports filed by the current user. */
+  async listMine(reporterId: string, query: ReportListQuery) {
+    const { skip, take } = toPrismaPagination(query.page, query.pageSize);
+    const where: Prisma.ReportWhereInput = {
+      reporterId,
+      ...(query.status ? { status: STATUS_MAP[query.status] } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              {
+                targetSnippet: { contains: query.search, mode: "insensitive" },
+              },
+              { reasonDetail: { contains: query.search, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    };
+
+    const [rows, total] = await prisma.$transaction([
+      prisma.report.findMany({
+        where,
+        include,
+        orderBy: { createdAt: query.sort },
+        skip,
+        take,
+      }),
+      prisma.report.count({ where }),
+    ]);
+
+    return {
+      data: rows.map(serialize),
+      meta: buildPaginationMeta(query.page, query.pageSize, total),
+    };
+  },
+
   async getById(id: string) {
     const report = await prisma.report.findUnique({ where: { id }, include });
     if (!report) throw new NotFoundError("Report not found");

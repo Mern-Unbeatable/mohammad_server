@@ -20,9 +20,10 @@ router.get(
   validate({ query: adminUserListQuerySchema }),
   usersController.list,
 );
+// Any authenticated user may view an ACTIVE member's public profile;
+// ADMIN receives the full admin payload.
 router.get(
   "/:id",
-  authorize(Role.ADMIN),
   validate({ params: idParamSchema }),
   usersController.getById,
 );

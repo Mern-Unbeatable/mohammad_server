@@ -49,4 +49,17 @@ export const marketplaceController = {
     );
     sendSuccess(res, { data });
   }),
+
+  enquire: asyncHandler(async (req: Request, res: Response) => {
+    const data = await marketplaceService.enquire(
+      req.user!.id,
+      req.params.id,
+      req.body.message,
+    );
+    sendSuccess(res, {
+      statusCode: StatusCodes.CREATED,
+      data,
+      message: "Enquiry sent",
+    });
+  }),
 };

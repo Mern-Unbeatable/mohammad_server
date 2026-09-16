@@ -184,4 +184,37 @@ export const recruitmentService = {
       },
     }));
   },
+
+  /** Applications submitted by the current user (applicant view). */
+  async listMyApplications(
+    applicantId: string,
+    query: { page: number; pageSize: number; sort: "asc" | "desc" },
+  ) {
+    const { skip, take } = toPrismaPagination(query.page, query.pageSize);
+    const where = { applicantId };
+
+    const [rows, total] = await prisma.$transaction([
+      prisma.jobApplication.findMany({
+        where,
+        include: {
+          job: { include: jobInclude },
+        },
+        orderBy: { createdAt: query.sort },
+        skip,
+        take,
+      }),
+      prisma.jobApplication.count({ where }),
+    ]);
+
+    return {
+      data: rows.map((a) => ({
+        id: a.id,
+        status: a.status,
+        coverLetter: a.coverLetter,
+        appliedAt: a.createdAt,
+        job: serializeJob(a.job),
+      })),
+      meta: buildPaginationMeta(query.page, query.pageSize, total),
+    };
+  },
 };

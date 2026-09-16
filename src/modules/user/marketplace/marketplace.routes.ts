@@ -4,6 +4,7 @@ import { validate } from "@/middleware/validate";
 import { marketplaceController } from "./marketplace.controller";
 import {
   createListingSchema,
+  enquireListingSchema,
   listingIdParamSchema,
   listingListQuerySchema,
   updateListingSchema,
@@ -42,6 +43,11 @@ router.post(
   "/:id/save",
   validate({ params: listingIdParamSchema }),
   marketplaceController.toggleSave,
+);
+router.post(
+  "/:id/enquire",
+  validate({ params: listingIdParamSchema, body: enquireListingSchema }),
+  marketplaceController.enquire,
 );
 
 export const marketplaceRoutes = router;

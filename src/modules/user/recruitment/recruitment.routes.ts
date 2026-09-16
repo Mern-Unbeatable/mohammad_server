@@ -7,6 +7,7 @@ import {
   createJobSchema,
   jobIdParamSchema,
   jobListQuerySchema,
+  myApplicationsQuerySchema,
   updateJobSchema,
 } from "./recruitment.validators";
 
@@ -23,6 +24,12 @@ router.post(
   "/",
   validate({ body: createJobSchema }),
   recruitmentController.create,
+);
+// Must be registered before `/:id` so "applications" is not captured as an id.
+router.get(
+  "/applications/me",
+  validate({ query: myApplicationsQuerySchema }),
+  recruitmentController.listMyApplications,
 );
 router.get(
   "/:id",

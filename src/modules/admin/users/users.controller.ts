@@ -11,7 +11,7 @@ export const usersController = {
   }),
 
   getById: asyncHandler(async (req: Request, res: Response) => {
-    const data = await usersService.getUserById(req.params.id);
+    const data = await usersService.getUserById(req.params.id, req.user!.role);
     sendSuccess(res, { data });
   }),
 

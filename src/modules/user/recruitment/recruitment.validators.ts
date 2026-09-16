@@ -39,4 +39,7 @@ export const applyJobSchema = z.object({
 
 export const jobIdParamSchema = z.object({ id: z.string().uuid() });
 
+export const myApplicationsQuerySchema = paginationQuerySchema;
+
 export type JobListQuery = z.infer<typeof jobListQuerySchema>;
+export type MyApplicationsQuery = z.infer<typeof myApplicationsQuerySchema>;

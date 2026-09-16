@@ -23,6 +23,13 @@ router.post(
   reportsController.create,
 );
 
+// Reporter's own submissions (before /:id)
+router.get(
+  "/me",
+  validate({ query: reportListQuerySchema }),
+  reportsController.listMine,
+);
+
 // Admin moderation surface
 router.get(
   "/",

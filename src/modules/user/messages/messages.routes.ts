@@ -6,6 +6,7 @@ import {
   conversationIdParamSchema,
   conversationListQuerySchema,
   createGroupSchema,
+  messageIdParamSchema,
   messageListQuerySchema,
   sendMessageSchema,
   startDirectSchema,
@@ -42,6 +43,16 @@ router.post(
   "/:id/messages",
   validate({ params: conversationIdParamSchema, body: sendMessageSchema }),
   messagesController.sendMessage,
+);
+router.delete(
+  "/:id/messages/:messageId",
+  validate({ params: messageIdParamSchema }),
+  messagesController.deleteMessage,
+);
+router.delete(
+  "/:id/leave",
+  validate({ params: conversationIdParamSchema }),
+  messagesController.leave,
 );
 
 export const messagesRoutes = router;

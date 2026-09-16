@@ -30,6 +30,55 @@ export const contactsService = {
   async listContacts(userId: string, query: ContactListQuery) {
     const { skip, take } = toPrismaPagination(query.page, query.pageSize);
 
+    // Pending/accepted/declined inbox: list from Connection rows, not full directory.
+    if (query.status) {
+      const statusMap = {
+        pending: ConnectionStatus.PENDING,
+        accepted: ConnectionStatus.ACCEPTED,
+        declined: ConnectionStatus.DECLINED,
+      } as const;
+      const connectionStatus = statusMap[query.status];
+
+      const where: Prisma.ConnectionWhereInput = {
+        status: connectionStatus,
+        ...(query.direction === "incoming"
+          ? { addresseeId: userId }
+          : query.direction === "outgoing"
+            ? { requesterId: userId }
+            : {
+                OR: [{ requesterId: userId }, { addresseeId: userId }],
+              }),
+      };
+
+      const [rows, total] = await prisma.$transaction([
+        prisma.connection.findMany({
+          where,
+          include: {
+            requester: { include: { profile: true } },
+            addressee: { include: { profile: true } },
+          },
+          orderBy: { createdAt: query.sort },
+          skip,
+          take,
+        }),
+        prisma.connection.count({ where }),
+      ]);
+
+      return {
+        data: rows.map((c) => {
+          const other =
+            c.requesterId === userId ? c.addressee : c.requester;
+          const direction =
+            c.requesterId === userId ? "outgoing" : "incoming";
+          return {
+            ...serializeContact(other, c.status, direction),
+            connectionId: c.id,
+          };
+        }),
+        meta: buildPaginationMeta(query.page, query.pageSize, total),
+      };
+    }
+
     const where: Prisma.UserWhereInput = {
       id: { not: userId },
       status: "ACTIVE",
@@ -84,20 +133,28 @@ export const contactsService = {
 
     const map = new Map<
       string,
-      { status: ConnectionStatus; direction: "incoming" | "outgoing" }
+      {
+        status: ConnectionStatus;
+        direction: "incoming" | "outgoing";
+        connectionId: string;
+      }
     >();
     for (const c of connections) {
       const otherId = c.requesterId === userId ? c.addresseeId : c.requesterId;
       map.set(otherId, {
         status: c.status,
         direction: c.requesterId === userId ? "outgoing" : "incoming",
+        connectionId: c.id,
       });
     }
 
     return {
       data: rows.map((r) => {
         const rel = map.get(r.id);
-        return serializeContact(r, rel?.status ?? null, rel?.direction ?? null);
+        return {
+          ...serializeContact(r, rel?.status ?? null, rel?.direction ?? null),
+          connectionId: rel?.connectionId ?? null,
+        };
       }),
       meta: buildPaginationMeta(query.page, query.pageSize, total),
     };
