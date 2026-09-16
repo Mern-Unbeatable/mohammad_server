@@ -61,12 +61,12 @@ enum FeedPostType {
 }
 
 enum ReactionType {
-  LIKE
-  LOVE
-  CELEBRATE
-  SUPPORT
-  INSIGHTFUL
-  CURIOUS
+  like
+  love
+  haha
+  wow
+  sad
+  angry
 }
 
 enum ListingCondition {
@@ -363,7 +363,7 @@ model FeedReaction {
   post      FeedPost     @relation(fields: [postId], references: [id], onDelete: Cascade)
   userId    String
   user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      ReactionType @default(LIKE)
+  type      ReactionType @default(like)
   createdAt DateTime     @default(now())
 
   @@unique([postId, userId])

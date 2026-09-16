@@ -12,7 +12,7 @@ export const feedController = {
   }),
 
   getById: asyncHandler(async (req: Request, res: Response) => {
-    const data = await feedService.getById(req.params.id);
+    const data = await feedService.getById(req.params.id, req.user!.id);
     sendSuccess(res, { data });
   }),
 

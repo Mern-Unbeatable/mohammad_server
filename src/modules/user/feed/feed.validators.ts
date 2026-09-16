@@ -1,6 +1,17 @@
 import { z } from "zod";
 import { paginationQuerySchema } from "@/shared/http/pagination";
 
+export const REACTION_TYPES = [
+  "like",
+  "love",
+  "haha",
+  "wow",
+  "sad",
+  "angry",
+] as const;
+
+export type ReactionTypeValue = (typeof REACTION_TYPES)[number];
+
 export const feedListQuerySchema = paginationQuerySchema.extend({
   type: z.enum(["question", "information", "suppliers"]).optional(),
   mine: z.coerce.boolean().optional(),
@@ -33,10 +44,33 @@ export const createCommentSchema = z.object({
   content: z.string().trim().min(1).max(2000),
 });
 
+/** Accepts UI ids or legacy uppercase enums; stores normalized lowercase text. */
 export const reactionSchema = z.object({
   type: z
-    .enum(["LIKE", "LOVE", "CELEBRATE", "SUPPORT", "INSIGHTFUL", "CURIOUS"])
-    .default("LIKE"),
+    .enum([
+      ...REACTION_TYPES,
+      "LIKE",
+      "LOVE",
+      "CELEBRATE",
+      "SUPPORT",
+      "INSIGHTFUL",
+      "CURIOUS",
+      "celebrate",
+      "support",
+      "insightful",
+      "curious",
+    ])
+    .default("like")
+    .transform((value): ReactionTypeValue => {
+      const normalized = value.toLowerCase();
+      const legacy: Record<string, ReactionTypeValue> = {
+        celebrate: "haha",
+        support: "wow",
+        insightful: "sad",
+        curious: "angry",
+      };
+      return legacy[normalized] ?? (normalized as ReactionTypeValue);
+    }),
 });
 
 export const postIdParamSchema = z.object({ id: z.string().uuid() });

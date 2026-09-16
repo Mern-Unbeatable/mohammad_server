@@ -30,7 +30,11 @@ const serializeAuthor = (user: {
   ...(user.profile ? serializeProfile(user.profile) : {}),
 });
 
-const serializePost = (post: PostPayload) => ({
+const serializePost = (
+  post: PostPayload,
+  myReaction: ReactionType | null = null,
+  reactionCounts: Partial<Record<ReactionType, number>> = {},
+) => ({
   id: post.id,
   type: post.type,
   content: post.content,
@@ -38,6 +42,15 @@ const serializePost = (post: PostPayload) => ({
   documentUrl: post.documentUrl,
   createdAt: post.createdAt,
   author: serializeAuthor(post.author),
+  myReaction,
+  reactionCounts: {
+    like: reactionCounts.like ?? 0,
+    love: reactionCounts.love ?? 0,
+    haha: reactionCounts.haha ?? 0,
+    wow: reactionCounts.wow ?? 0,
+    sad: reactionCounts.sad ?? 0,
+    angry: reactionCounts.angry ?? 0,
+  },
   stats: {
     reactions: post._count.reactions,
     comments: post._count.comments,
@@ -51,6 +64,37 @@ const serializePost = (post: PostPayload) => ({
   })),
 });
 
+const emptyReactionCounts = (): Record<ReactionType, number> => ({
+  like: 0,
+  love: 0,
+  haha: 0,
+  wow: 0,
+  sad: 0,
+  angry: 0,
+});
+
+const buildReactionCountsByPost = async (postIds: string[]) => {
+  const map = new Map<string, Record<ReactionType, number>>();
+  if (postIds.length === 0) return map;
+
+  const grouped = await prisma.feedReaction.groupBy({
+    by: ["postId", "type"],
+    where: { postId: { in: postIds } },
+    _count: { _all: true },
+  });
+
+  for (const postId of postIds) {
+    map.set(postId, emptyReactionCounts());
+  }
+
+  for (const row of grouped) {
+    const counts = map.get(row.postId) ?? emptyReactionCounts();
+    counts[row.type] = row._count._all;
+    map.set(row.postId, counts);
+  }
+
+  return map;
+};
 export const feedService = {
   async list(
     userId: string,
@@ -79,19 +123,54 @@ export const feedService = {
       prisma.feedPost.count({ where }),
     ]);
 
+    const myReactions =
+      rows.length === 0
+        ? []
+        : await prisma.feedReaction.findMany({
+            where: {
+              userId,
+              postId: { in: rows.map((row) => row.id) },
+            },
+            select: { postId: true, type: true },
+          });
+
+    const myReactionByPost = new Map(
+      myReactions.map((row) => [row.postId, row.type]),
+    );
+    const countsByPost = await buildReactionCountsByPost(
+      rows.map((row) => row.id),
+    );
+
     return {
-      data: rows.map(serializePost),
+      data: rows.map((post) =>
+        serializePost(
+          post,
+          myReactionByPost.get(post.id) ?? null,
+          countsByPost.get(post.id),
+        ),
+      ),
       meta: buildPaginationMeta(query.page, query.pageSize, total),
     };
   },
 
-  async getById(id: string) {
+  async getById(id: string, userId?: string) {
     const post = await prisma.feedPost.findUnique({
       where: { id },
       include: postInclude,
     });
     if (!post) throw new NotFoundError("Post not found");
-    return serializePost(post);
+
+    let myReaction: ReactionType | null = null;
+    if (userId) {
+      const existing = await prisma.feedReaction.findUnique({
+        where: { postId_userId: { postId: id, userId } },
+        select: { type: true },
+      });
+      myReaction = existing?.type ?? null;
+    }
+
+    const countsByPost = await buildReactionCountsByPost([id]);
+    return serializePost(post, myReaction, countsByPost.get(id));
   },
 
   async create(
@@ -187,16 +266,32 @@ export const feedService = {
       where: { postId_userId: { postId, userId } },
     });
 
+    let myReaction: ReactionType | null;
+
     if (existing && existing.type === type) {
       await prisma.feedReaction.delete({ where: { id: existing.id } });
-      return { reacted: false, type: null };
+      myReaction = null;
+    } else {
+      await prisma.feedReaction.upsert({
+        where: { postId_userId: { postId, userId } },
+        create: { postId, userId, type },
+        update: { type },
+      });
+      myReaction = type;
     }
 
-    await prisma.feedReaction.upsert({
-      where: { postId_userId: { postId, userId } },
-      create: { postId, userId, type },
-      update: { type },
+    const reactionCount = await prisma.feedReaction.count({
+      where: { postId },
     });
-    return { reacted: true, type };
+    const countsByPost = await buildReactionCountsByPost([postId]);
+
+    return {
+      reacted: Boolean(myReaction),
+      type: myReaction,
+      myReaction,
+      reactionCount,
+      reactionCounts: countsByPost.get(postId) ?? emptyReactionCounts(),
+      stats: { reactions: reactionCount },
+    };
   },
 };
