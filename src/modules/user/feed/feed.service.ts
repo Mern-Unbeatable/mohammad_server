@@ -30,15 +30,8 @@ const getPostInclude = (viewerId?: string) =>
   ({
     author: { include: { profile: true } },
     comments: {
-      where: { parentCommentId: null },
       orderBy: { createdAt: "desc" as const },
-      include: {
-        ...getCommentInclude(viewerId),
-        replies: {
-          orderBy: { createdAt: "desc" as const },
-          include: getCommentInclude(viewerId),
-        },
-      },
+      include: getCommentInclude(viewerId),
     },
     _count: { select: { reactions: true, comments: true } },
   }) satisfies Prisma.FeedPostInclude;
@@ -48,7 +41,6 @@ type PostPayload = Prisma.FeedPostGetPayload<{
 }>;
 
 type CommentPayload = PostPayload["comments"][number];
-type ReplyPayload = CommentPayload extends { replies: (infer R)[] } ? R : never;
 
 const serializeAuthor = (user: {
   id: string;
@@ -71,10 +63,7 @@ type SerializedComment = {
   replies: SerializedComment[];
 };
 
-const serializeCommentNode = (
-  comment: CommentPayload | ReplyPayload,
-  includeReplies = false,
-): SerializedComment => {
+const serializeCommentFlat = (comment: CommentPayload): SerializedComment => {
   const likeRows =
     "likes" in comment && Array.isArray(comment.likes) ? comment.likes : [];
   const likeCount =
@@ -82,28 +71,53 @@ const serializeCommentNode = (
       ? comment._count.likes
       : 0;
   const liked = likeRows.length > 0;
-  const nestedReplies: SerializedComment[] =
-    includeReplies && "replies" in comment && Array.isArray(comment.replies)
-      ? comment.replies.map((reply) => serializeCommentNode(reply, false))
-      : [];
   const replyCount =
     "_count" in comment && comment._count && "replies" in comment._count
       ? comment._count.replies
-      : nestedReplies.length;
+      : 0;
 
   return {
     id: comment.id,
     content: comment.content,
     createdAt: comment.createdAt,
-    parentCommentId:
-      "parentCommentId" in comment ? (comment.parentCommentId ?? null) : null,
+    parentCommentId: comment.parentCommentId ?? null,
     author: serializeAuthor(comment.author),
     likeCount,
     liked,
     isLiked: liked,
     replyCount,
-    replies: nestedReplies,
+    replies: [],
   };
+};
+
+const buildCommentTree = (flat: SerializedComment[]): SerializedComment[] => {
+  const nodes = new Map<string, SerializedComment>();
+  for (const comment of flat) {
+    nodes.set(comment.id, { ...comment, replies: [] });
+  }
+
+  const roots: SerializedComment[] = [];
+  for (const comment of flat) {
+    const node = nodes.get(comment.id)!;
+    if (comment.parentCommentId && nodes.has(comment.parentCommentId)) {
+      nodes.get(comment.parentCommentId)!.replies.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  const sortNodes = (list: SerializedComment[]) => {
+    list.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+    for (const node of list) {
+      node.replyCount = node.replies.length;
+      sortNodes(node.replies);
+    }
+  };
+  sortNodes(roots);
+  return roots;
 };
 
 const serializePost = (
@@ -132,7 +146,7 @@ const serializePost = (
     comments: post._count.comments,
     shares: 0,
   },
-  comments: post.comments.map((comment) => serializeCommentNode(comment, true)),
+  comments: buildCommentTree(post.comments.map(serializeCommentFlat)),
 });
 
 const emptyReactionCounts = (): Record<ReactionType, number> => ({
@@ -292,7 +306,7 @@ export const feedService = {
     const post = await prisma.feedPost.findUnique({ where: { id: postId } });
     if (!post) throw new NotFoundError("Post not found");
 
-    let rootParentId: string | null = null;
+    let resolvedParentId: string | null = null;
     if (parentCommentId) {
       const parent = await prisma.feedComment.findUnique({
         where: { id: parentCommentId },
@@ -300,8 +314,7 @@ export const feedService = {
       if (!parent || parent.postId !== postId) {
         throw new NotFoundError("Parent comment not found");
       }
-      // Facebook-style: all replies hang under the root comment
-      rootParentId = parent.parentCommentId ?? parent.id;
+      resolvedParentId = parent.id;
     }
 
     const comment = await prisma.feedComment.create({
@@ -309,7 +322,7 @@ export const feedService = {
         postId,
         authorId,
         content,
-        parentCommentId: rootParentId,
+        parentCommentId: resolvedParentId,
       },
       include: getCommentInclude(authorId),
     });
@@ -319,7 +332,7 @@ export const feedService = {
         data: {
           userId: post.authorId,
           type: "COMMENT",
-          title: rootParentId
+          title: resolvedParentId
             ? "New reply on your post"
             : "New comment on your post",
           link: `/feed`,
@@ -331,7 +344,7 @@ export const feedService = {
       id: comment.id,
       content: comment.content,
       createdAt: comment.createdAt,
-      parentCommentId: rootParentId,
+      parentCommentId: resolvedParentId,
       author: serializeAuthor(comment.author),
       likeCount: 0,
       liked: false,
