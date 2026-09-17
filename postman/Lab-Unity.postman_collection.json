@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Lab Unity API",
-    "description": "Role + feature organized collection matching frontend (`web/src/api/httpEndpoints.js`) and backend modules (`server/src/modules/{admin,supplier,user}`).\n\n## Structure\n- **Auth** — register / login / refresh / logout / auth me\n- **Public** — health, blog read, subscription plans\n- **Admin** — dashboard, statistics, settings, users, profile, blogs, reports, ads review, marketplace/recruitment/general moderation\n- **Supplier** — ads, marketplace, recruitment, general, blogs (read), contacts, notifications, messages, profile, uploads; Dashboard = composed requests only\n- **User** — profile, feed, contacts, marketplace browse, recruitment apply, general, messages, notifications, ads browse, subscriptions, reports, blogs, uploads\n\n## Variables\n`baseUrl` (default `http://localhost:4000/api/v1`), `accessToken`, `adminToken`, `sellerToken`, `customerToken`, plus entity IDs.\n\n## Removed / not invented\n- Old nested **Dashboard > Admin/Supplier/Customer** mega-folder (duplicated other folders) — removed.\n- Duplicate **Platform Settings** under Admin (kept under Settings only).\n- **No** Supplier `GET /dashboard` or Admin “recent activity” — those APIs do not exist.\n- Frontend `ADMIN.MANAGE_USERS` → `/admin/users` is **not** a real route (users are under `/users`). Marked by omission.\n\n## Auth headers\nCollection default Bearer `{{accessToken}}`. Role folders override with `adminToken` / `sellerToken` / `customerToken`. Login test script fills the matching role token when `user.role` is present in the login response.",
+    "description": "Role + feature organized collection matching frontend (`web/src/api/httpEndpoints.js`) and backend modules (`server/src/modules/{admin,supplier,user}`).\n\n## Structure\n- **Auth** — register / login / refresh / logout / auth me\n- **Public** — health, blog read, subscription plans\n- **Admin** — dashboard, statistics, settings, users, profile, blogs, reports, ads review, marketplace/recruitment/general moderation\n- **Supplier** — ads, marketplace, recruitment, general, blogs (read), contacts, notifications, messages, profile, uploads; Dashboard = composed requests only\n- **User** — profile, feed, contacts, marketplace (browse + own listings), recruitment (browse + own jobs), general, messages, notifications, ads browse, subscriptions, reports, search, blogs, uploads\n\n## Variables\n`baseUrl` (default `http://localhost:4000/api/v1`), `accessToken`, `adminToken`, `sellerToken`, `customerToken`, plus entity IDs (`messageId`, `sessionId`, …).\n\n## Notable query filters\n- Contacts: `status` (pending|accepted|declined), `direction` (incoming|outgoing), `country`, `search`\n- Feed / General / Marketplace / Recruitment / Ads: `mine`; Marketplace also `saved`; Recruitment also `since` (7d|30d|90d)\n- Notifications: `unread`\n- Search: `q` (required), `types`, `limit`\n\n## Removed / not invented\n- Old nested **Dashboard > Admin/Supplier/Customer** mega-folder (duplicated other folders) — removed.\n- Duplicate **Platform Settings** under Admin (kept under Settings only).\n- **No** Supplier `GET /dashboard` or Admin “recent activity” — those APIs do not exist.\n- Frontend `ADMIN.MANAGE_USERS` → `/admin/users` is **not** a real route (users are under `/users`). Marked by omission.\n- Stripe webhook `POST /subscriptions/webhook` is server-only (raw body + Stripe signature) — not included.\n\n## Auth headers\nCollection default Bearer `{{accessToken}}`. Role folders override with `adminToken` / `sellerToken` / `customerToken`. Login test script fills the matching role token when `user.role` is present in the login response.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
   },
@@ -99,6 +99,14 @@
     {
       "key": "metric",
       "value": "clicks"
+    },
+    {
+      "key": "messageId",
+      "value": ""
+    },
+    {
+      "key": "sessionId",
+      "value": ""
     }
   ],
   "item": [
@@ -1074,7 +1082,7 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{baseUrl}}/advertisements?page=1&pageSize=20&status=PENDING",
+                  "raw": "{{baseUrl}}/advertisements?page=1&pageSize=20",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -1092,11 +1100,32 @@
                     },
                     {
                       "key": "status",
-                      "value": "PENDING"
+                      "value": "PENDING",
+                      "disabled": true
+                    },
+                    {
+                      "key": "category",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "mine",
+                      "value": "true",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "desc",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "Admin sees all ads.\n\n**Auth:** ADMIN\n**Query:** page, pageSize, status, category, mine\n**Status:** 200"
+                "description": "**Auth:** ADMIN\n**Query:** page, pageSize, sort, search, status?, category?, mine?\n**Status:** 200"
               }
             },
             {
@@ -1364,10 +1393,30 @@
                     {
                       "key": "pageSize",
                       "value": "10"
+                    },
+                    {
+                      "key": "type",
+                      "value": "news",
+                      "disabled": true
+                    },
+                    {
+                      "key": "mine",
+                      "value": "true",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "desc",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Status:** 200"
+                "description": "**Auth:** authenticated\n**Query:** page, pageSize, sort, search, type? (news|document), mine?\n**Status:** 200"
               }
             },
             {
@@ -1683,10 +1732,35 @@
                     {
                       "key": "pageSize",
                       "value": "10"
+                    },
+                    {
+                      "key": "category",
+                      "value": "CHROMATOGRAPHY",
+                      "disabled": true
+                    },
+                    {
+                      "key": "condition",
+                      "value": "GOOD",
+                      "disabled": true
+                    },
+                    {
+                      "key": "saved",
+                      "value": "true",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "desc",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Status:** 200"
+                "description": "**Auth:** authenticated\n**Query:** mine, page, pageSize, sort, search, category?, condition?, minPrice?, maxPrice?, saved?\n**Status:** 200"
               }
             },
             {
@@ -1829,10 +1903,35 @@
                     {
                       "key": "pageSize",
                       "value": "10"
+                    },
+                    {
+                      "key": "level",
+                      "value": "SENIOR",
+                      "disabled": true
+                    },
+                    {
+                      "key": "employmentType",
+                      "value": "FULL_TIME",
+                      "disabled": true
+                    },
+                    {
+                      "key": "since",
+                      "value": "30d",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "desc",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Status:** 200"
+                "description": "**Auth:** authenticated\n**Query:** mine, page, pageSize, sort, search, level?, employmentType?, since?\n**Status:** 200"
               }
             },
             {
@@ -1975,7 +2074,7 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{baseUrl}}/general?mine=true&page=1&pageSize=10",
+                  "raw": "{{baseUrl}}/general?page=1&pageSize=10&mine=true",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -1984,20 +2083,35 @@
                   ],
                   "query": [
                     {
-                      "key": "mine",
-                      "value": "true"
-                    },
-                    {
                       "key": "page",
                       "value": "1"
                     },
                     {
                       "key": "pageSize",
                       "value": "10"
+                    },
+                    {
+                      "key": "mine",
+                      "value": "true"
+                    },
+                    {
+                      "key": "type",
+                      "value": "news",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "desc",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Status:** 200"
+                "description": "**Auth:** authenticated\n**Query:** page, pageSize, sort, search, type? (news|document), mine?\n**Status:** 200"
               }
             },
             {
@@ -2182,7 +2296,7 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{baseUrl}}/contacts?page=1&pageSize=20",
+                  "raw": "{{baseUrl}}/contacts?page=1&pageSize=20&status=accepted",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -2197,10 +2311,34 @@
                     {
                       "key": "pageSize",
                       "value": "20"
+                    },
+                    {
+                      "key": "status",
+                      "value": "accepted"
+                    },
+                    {
+                      "key": "direction",
+                      "value": "incoming",
+                      "disabled": true
+                    },
+                    {
+                      "key": "country",
+                      "value": "Germany",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "desc",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Query:** pagination + country?\n**Status:** 200"
+                "description": "**Auth:** authenticated\n**Query:** page, pageSize, sort, search, country?, status? (pending|accepted|declined), direction? (incoming|outgoing — use with status=pending)\n**Status:** 200"
               }
             },
             {
@@ -2346,10 +2484,20 @@
                     {
                       "key": "pageSize",
                       "value": "20"
+                    },
+                    {
+                      "key": "unread",
+                      "value": "true",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "desc",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Query:** unread?\n**Status:** 200"
+                "description": "**Auth:** authenticated\n**Query:** page, pageSize, sort, search, unread?\n**Status:** 200"
               }
             },
             {
@@ -2440,10 +2588,15 @@
                     {
                       "key": "type",
                       "value": "direct"
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Status:** 200"
+                "description": "**Auth:** authenticated\n**Query:** type? (direct|group), search?\n**Status:** 200"
               }
             },
             {
@@ -2533,10 +2686,15 @@
                     {
                       "key": "pageSize",
                       "value": "30"
+                    },
+                    {
+                      "key": "sort",
+                      "value": "desc",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Status:** 200"
+                "description": "**Auth:** authenticated\n**Query:** page, pageSize (default 30), sort, search\n**Status:** 200"
               }
             },
             {
@@ -2570,6 +2728,45 @@
                     }
                   }
                 }
+              }
+            },
+            {
+              "name": "Delete Message",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/messages/{{conversationId}}/messages/{{messageId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "messages",
+                    "{{conversationId}}",
+                    "messages",
+                    "{{messageId}}"
+                  ]
+                },
+                "description": "**Auth:** authenticated (message author)\n**Status:** 200"
+              }
+            },
+            {
+              "name": "Leave Conversation",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/messages/{{conversationId}}/leave",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "messages",
+                    "{{conversationId}}",
+                    "leave"
+                  ]
+                },
+                "description": "**Auth:** authenticated (participant)\n**Status:** 200"
               }
             }
           ]
@@ -2750,7 +2947,7 @@
     },
     {
       "name": "User",
-      "description": "Customer / user app surface. Folder auth uses `{{customerToken}}` (USER role).\n\nCanonical modules under `server/src/modules/user/*` plus shared contacts/notifications/ads browse.",
+      "description": "Customer / user app surface. Folder auth uses `{{customerToken}}` (USER role).\n\nCanonical modules under `server/src/modules/user/*` plus shared contacts/notifications/ads browse. Includes own marketplace listings & recruitment jobs, search, report inbox, and Stripe checkout confirm.",
       "auth": {
         "type": "bearer",
         "bearer": [
@@ -2792,6 +2989,24 @@
                   ]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
+              }
+            },
+            {
+              "name": "Get User by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/users/{{userId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "users",
+                    "{{userId}}"
+                  ]
+                },
+                "description": "**Auth:** authenticated\n**Path:** userId (UUID)\nPublic ACTIVE profile; ADMIN gets full payload\n**Status:** 200"
               }
             },
             {
@@ -2896,10 +3111,30 @@
                     {
                       "key": "pageSize",
                       "value": "10"
+                    },
+                    {
+                      "key": "type",
+                      "value": "question",
+                      "disabled": true
+                    },
+                    {
+                      "key": "mine",
+                      "value": "true",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "desc",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Query:** type?, mine?\n**Status:** 200"
+                "description": "**Auth:** authenticated\n**Query:** page, pageSize, sort, search, type? (question|information|suppliers), mine?\n**Status:** 200"
               }
             },
             {
@@ -2971,10 +3206,10 @@
                     "{{postId}}"
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Status:** 200",
+                "description": "**Auth:** authenticated\n**Body:** content?, imageUrl? (url|null), documentUrl? (url|null)\n**Status:** 200",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"content\": \"Updated: Has anyone used the new Thermo Fisher centrifuge series? Reviews appreciated!\"\n}",
+                  "raw": "{\n  \"content\": \"Updated: Has anyone used the new Thermo Fisher centrifuge series? Reviews appreciated!\",\n  \"imageUrl\": null\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -3022,10 +3257,10 @@
                     "comments"
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Body:** `{ content }`\n**Status:** 201",
+                "description": "**Auth:** authenticated\n**Body:** `{ content, parentCommentId? }`\n**Status:** 201",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"content\": \"I used it for 6 months — great reliability but the noise level is higher than expected.\"\n}",
+                  "raw": "{\n  \"content\": \"I used it for 6 months — great reliability but the noise level is higher than expected.\",\n  \"parentCommentId\": null\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -3055,6 +3290,27 @@
               }
             },
             {
+              "name": "Like Comment",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/feed/{{postId}}/comments/{{commentId}}/like",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "feed",
+                    "{{postId}}",
+                    "comments",
+                    "{{commentId}}",
+                    "like"
+                  ]
+                },
+                "description": "**Auth:** authenticated\n**Path:** postId, commentId\n**Status:** 200 (toggle like)"
+              }
+            },
+            {
               "name": "React to Post",
               "request": {
                 "method": "POST",
@@ -3075,10 +3331,10 @@
                     "reactions"
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Body:** `{ type: LIKE|LOVE|CELEBRATE|SUPPORT|INSIGHTFUL|CURIOUS }`\n**Status:** 200",
+                "description": "**Auth:** authenticated\n**Body:** `{ type: like|love|haha|wow|sad|angry }` (legacy uppercase / CELEBRATE|SUPPORT|INSIGHTFUL|CURIOUS also accepted)\n**Status:** 200",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"type\": \"LIKE\"\n}",
+                  "raw": "{\n  \"type\": \"like\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -3109,7 +3365,7 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{baseUrl}}/contacts?page=1&pageSize=20",
+                  "raw": "{{baseUrl}}/contacts?page=1&pageSize=20&status=accepted",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3124,10 +3380,34 @@
                     {
                       "key": "pageSize",
                       "value": "20"
+                    },
+                    {
+                      "key": "status",
+                      "value": "accepted"
+                    },
+                    {
+                      "key": "direction",
+                      "value": "incoming",
+                      "disabled": true
+                    },
+                    {
+                      "key": "country",
+                      "value": "Germany",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "desc",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Status:** 200"
+                "description": "**Auth:** authenticated\n**Query:** page, pageSize, sort, search, country?, status? (pending|accepted|declined), direction? (incoming|outgoing — use with status=pending)\n**Status:** 200"
               }
             },
             {
@@ -3273,10 +3553,81 @@
                     {
                       "key": "pageSize",
                       "value": "12"
+                    },
+                    {
+                      "key": "category",
+                      "value": "CHROMATOGRAPHY",
+                      "disabled": true
+                    },
+                    {
+                      "key": "condition",
+                      "value": "GOOD",
+                      "disabled": true
+                    },
+                    {
+                      "key": "minPrice",
+                      "value": "100",
+                      "disabled": true
+                    },
+                    {
+                      "key": "maxPrice",
+                      "value": "10000",
+                      "disabled": true
+                    },
+                    {
+                      "key": "mine",
+                      "value": "true",
+                      "disabled": true
+                    },
+                    {
+                      "key": "saved",
+                      "value": "true",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "desc",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Status:** 200"
+                "description": "**Auth:** authenticated\n**Query:** page, pageSize, sort, search, category?, condition?, minPrice?, maxPrice?, mine?, saved?\n**Status:** 200"
+              }
+            },
+            {
+              "name": "Create Listing",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "marketplace"
+                  ]
+                },
+                "description": "**Auth:** authenticated\n**Body:** title, description, condition, category, price, year?, location?, images?\n**Status:** 201",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Agilent HPLC System 1260 Infinity\",\n  \"description\": \"Excellent condition HPLC system, used for 2 years. Includes all original accessories.\",\n  \"condition\": \"GOOD\",\n  \"category\": \"CHROMATOGRAPHY\",\n  \"year\": 2022,\n  \"price\": 8500,\n  \"location\": \"Berlin, Germany\",\n  \"images\": [\n    \"https://example.com/images/hplc-1.jpg\",\n    \"https://example.com/images/hplc-2.jpg\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
               }
             },
             {
@@ -3298,6 +3649,56 @@
               }
             },
             {
+              "name": "Update Listing",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace/{{listingId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "marketplace",
+                    "{{listingId}}"
+                  ]
+                },
+                "description": "**Auth:** authenticated (owner)\n**Body:** partial create fields + status? (ACTIVE|SOLD|REMOVED)\n**Status:** 200",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"price\": 7800,\n  \"status\": \"SOLD\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete Listing",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace/{{listingId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "marketplace",
+                    "{{listingId}}"
+                  ]
+                },
+                "description": "**Auth:** authenticated (owner/admin)\n**Status:** 200"
+              }
+            },
+            {
               "name": "Save / Unsave Listing",
               "request": {
                 "method": "POST",
@@ -3314,6 +3715,39 @@
                   ]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
+              }
+            },
+            {
+              "name": "Enquire About Listing",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace/{{listingId}}/enquire",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "marketplace",
+                    "{{listingId}}",
+                    "enquire"
+                  ]
+                },
+                "description": "**Auth:** authenticated\n**Body:** `{ message }`\n**Status:** 201",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"message\": \"Hi, is this HPLC still available? Could we schedule a viewing next week?\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
               }
             }
           ]
@@ -3353,10 +3787,71 @@
                     {
                       "key": "pageSize",
                       "value": "10"
+                    },
+                    {
+                      "key": "level",
+                      "value": "SENIOR",
+                      "disabled": true
+                    },
+                    {
+                      "key": "employmentType",
+                      "value": "FULL_TIME",
+                      "disabled": true
+                    },
+                    {
+                      "key": "mine",
+                      "value": "true",
+                      "disabled": true
+                    },
+                    {
+                      "key": "since",
+                      "value": "30d",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "desc",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Status:** 200"
+                "description": "**Auth:** authenticated\n**Query:** page, pageSize, sort, search, level? (ENTRY_LEVEL|MID_LEVEL|SENIOR), employmentType?, mine?, since? (7d|30d|90d)\n**Status:** 200"
+              }
+            },
+            {
+              "name": "Create Job",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/recruitment",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "recruitment"
+                  ]
+                },
+                "description": "**Auth:** authenticated\n**Status:** 201",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Senior Laboratory Analyst\",\n  \"company\": \"Acme Labs GmbH\",\n  \"location\": \"Hamburg, Germany\",\n  \"employmentType\": \"FULL_TIME\",\n  \"level\": \"SENIOR\",\n  \"salary\": \"€65,000 – €80,000\",\n  \"applyLink\": \"https://acmelabs.de/careers/apply\",\n  \"imageUrl\": \"https://acmelabs.de/logo.png\",\n  \"about\": \"We are looking for an experienced analyst to join our quality control team...\",\n  \"requirements\": [\n    \"BSc or MSc in Chemistry, Biochemistry or related field\",\n    \"5+ years in a regulated laboratory environment\",\n    \"Experience with HPLC and GC instrumentation\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
               }
             },
             {
@@ -3375,6 +3870,56 @@
                   ]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
+              }
+            },
+            {
+              "name": "Update Job",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/recruitment/{{jobId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "recruitment",
+                    "{{jobId}}"
+                  ]
+                },
+                "description": "**Auth:** authenticated (owner)\n**Body:** partial create fields + status? (OPEN|CLOSED|REMOVED)\n**Status:** 200",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"CLOSED\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete Job",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/recruitment/{{jobId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "recruitment",
+                    "{{jobId}}"
+                  ]
+                },
+                "description": "**Auth:** authenticated (owner/admin)\n**Status:** 200"
               }
             },
             {
@@ -3408,6 +3953,69 @@
                     }
                   }
                 }
+              }
+            },
+            {
+              "name": "List Job Applications",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/recruitment/{{jobId}}/applications?page=1&pageSize=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "recruitment",
+                    "{{jobId}}",
+                    "applications"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "pageSize",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "**Auth:** authenticated (job owner)\n**Query:** pagination\n**Status:** 200"
+              }
+            },
+            {
+              "name": "My Applications",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/recruitment/applications/me?page=1&pageSize=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "recruitment",
+                    "applications",
+                    "me"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "pageSize",
+                      "value": "20"
+                    },
+                    {
+                      "key": "sort",
+                      "value": "desc",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "**Auth:** authenticated\n**Query:** page, pageSize, sort, search\n**Status:** 200"
               }
             }
           ]
@@ -3447,10 +4055,30 @@
                     {
                       "key": "pageSize",
                       "value": "10"
+                    },
+                    {
+                      "key": "type",
+                      "value": "news",
+                      "disabled": true
+                    },
+                    {
+                      "key": "mine",
+                      "value": "true",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "desc",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Status:** 200"
+                "description": "**Auth:** authenticated\n**Query:** page, pageSize, sort, search, type? (news|document), mine?\n**Status:** 200"
               }
             },
             {
@@ -3522,10 +4150,10 @@
                     "{{generalPostId}}"
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Status:** 200",
+                "description": "**Auth:** authenticated (owner)\n**Body:** title?, summary?, category?, source?, imageUrl? (url|null), documentUrl? (url|null), body?\n**Status:** 200",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"summary\": \"Updated summary with additional regulatory details.\"\n}",
+                  "raw": "{\n  \"summary\": \"Updated summary with additional regulatory details.\",\n  \"imageUrl\": \"https://example.com/images/eu-regulation-updated.jpg\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -3585,10 +4213,15 @@
                     {
                       "key": "type",
                       "value": "direct"
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Status:** 200"
+                "description": "**Auth:** authenticated\n**Query:** type? (direct|group), search?\n**Status:** 200"
               }
             },
             {
@@ -3678,10 +4311,15 @@
                     {
                       "key": "pageSize",
                       "value": "30"
+                    },
+                    {
+                      "key": "sort",
+                      "value": "desc",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Status:** 200"
+                "description": "**Auth:** authenticated\n**Query:** page, pageSize (default 30), sort, search\n**Status:** 200"
               }
             },
             {
@@ -3715,6 +4353,45 @@
                     }
                   }
                 }
+              }
+            },
+            {
+              "name": "Delete Message",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/messages/{{conversationId}}/messages/{{messageId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "messages",
+                    "{{conversationId}}",
+                    "messages",
+                    "{{messageId}}"
+                  ]
+                },
+                "description": "**Auth:** authenticated (message author)\n**Status:** 200"
+              }
+            },
+            {
+              "name": "Leave Conversation",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/messages/{{conversationId}}/leave",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "messages",
+                    "{{conversationId}}",
+                    "leave"
+                  ]
+                },
+                "description": "**Auth:** authenticated (participant)\n**Status:** 200"
               }
             }
           ]
@@ -3754,10 +4431,20 @@
                     {
                       "key": "pageSize",
                       "value": "20"
+                    },
+                    {
+                      "key": "unread",
+                      "value": "true",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "desc",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Status:** 200"
+                "description": "**Auth:** authenticated\n**Query:** page, pageSize, sort, search, unread?\n**Status:** 200"
               }
             },
             {
@@ -3933,10 +4620,42 @@
                     "subscribe"
                   ]
                 },
-                "description": "**Auth:** authenticated\n**Body:** `{ plan: MONTHLY|YEARLY, paymentMethod? }`\n**Status:** 200",
+                "description": "**Auth:** authenticated\n**Body:** `{ plan: MONTHLY|YEARLY }` (returns Stripe Checkout session when configured)\n**Status:** 200",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"plan\": \"MONTHLY\",\n  \"paymentMethod\": \"card_1234567890\"\n}",
+                  "raw": "{\n  \"plan\": \"MONTHLY\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Confirm Checkout",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/subscriptions/confirm-checkout",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "subscriptions",
+                    "confirm-checkout"
+                  ]
+                },
+                "description": "**Auth:** authenticated\n**Body:** `{ sessionId }` — confirm Stripe Checkout session after redirect\n**Status:** 200",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sessionId\": \"{{sessionId}}\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -4008,6 +4727,93 @@
                     }
                   }
                 }
+              }
+            },
+            {
+              "name": "My Reports",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/reports/me?page=1&pageSize=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "reports",
+                    "me"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "pageSize",
+                      "value": "20"
+                    },
+                    {
+                      "key": "status",
+                      "value": "pending",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "desc",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "**Auth:** authenticated\n**Query:** page, pageSize, sort, search, status? (pending|under_review|resolved)\n**Status:** 200"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search",
+          "description": "Global search across users, jobs, listings, feed posts, and blogs.",
+          "auth": {
+            "type": "bearer",
+            "bearer": [
+              {
+                "key": "token",
+                "value": "{{customerToken}}",
+                "type": "string"
+              }
+            ]
+          },
+          "item": [
+            {
+              "name": "Global Search",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/search?q=HPLC",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "search"
+                  ],
+                  "query": [
+                    {
+                      "key": "q",
+                      "value": "HPLC"
+                    },
+                    {
+                      "key": "types",
+                      "value": "users,jobs,listings,posts,blogs",
+                      "disabled": true
+                    },
+                    {
+                      "key": "limit",
+                      "value": "5",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "**Auth:** authenticated\n**Query:** q (required), types? (comma list; default users,jobs,listings,posts,blogs), limit? (default 5, max 20)\n**Status:** 200"
               }
             }
           ]
