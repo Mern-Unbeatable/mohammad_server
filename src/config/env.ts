@@ -27,6 +27,7 @@ const toNumber = (value: string, key: string): number => {
 };
 
 const nodeEnv = optional("NODE_ENV", "development");
+const clientUrl = optional("CLIENT_URL", "http://localhost:5173");
 
 export const env = {
   nodeEnv,
@@ -39,6 +40,7 @@ export const env = {
     .map((origin) => origin.trim())
     .filter(Boolean),
   databaseUrl: required("DATABASE_URL"),
+  clientUrl,
   jwt: {
     accessSecret: required("JWT_ACCESS_SECRET"),
     refreshSecret: required("JWT_REFRESH_SECRET"),
@@ -49,6 +51,18 @@ export const env = {
     optional("BCRYPT_SALT_ROUNDS", "12"),
     "BCRYPT_SALT_ROUNDS",
   ),
+  passwordResetTtlMinutes: toNumber(
+    optional("PASSWORD_RESET_TTL_MINUTES", "30"),
+    "PASSWORD_RESET_TTL_MINUTES",
+  ),
+  smtp: {
+    host: optional("SMTP_HOST", ""),
+    port: toNumber(optional("SMTP_PORT", "587"), "SMTP_PORT"),
+    secure: optional("SMTP_SECURE", "false") === "true",
+    user: optional("SMTP_USER", ""),
+    pass: optional("SMTP_PASS", ""),
+    from: optional("MAIL_FROM", "Lab Unity <no-reply@labunity.com>"),
+  },
   upload: {
     dir: optional("UPLOAD_DIR", "uploads"),
     maxSizeMb: toNumber(
@@ -70,7 +84,7 @@ export const env = {
     webhookSecret: optional("STRIPE_WEBHOOK_SECRET", ""),
     priceMonthly: optional("STRIPE_PRICE_MONTHLY", ""),
     priceYearly: optional("STRIPE_PRICE_YEARLY", ""),
-    clientUrl: optional("CLIENT_URL", "http://localhost:5173"),
+    clientUrl,
   },
 } as const;
 

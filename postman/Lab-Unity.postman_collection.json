@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Lab Unity API",
-    "description": "Role + feature organized collection matching frontend (`web/src/api/httpEndpoints.js`) and backend modules (`server/src/modules/{admin,supplier,user}`).\n\n## Structure\n- **Auth** — register / login / refresh / logout / auth me\n- **Public** — health, blog read, subscription plans\n- **Admin** — dashboard, statistics, settings, users, profile, blogs, reports, ads review, marketplace/recruitment/general moderation\n- **Supplier** — ads, marketplace, recruitment, general, blogs (read), contacts, notifications, messages, profile, uploads; Dashboard = composed requests only\n- **User** — profile, feed, contacts, marketplace (browse + own listings), recruitment (browse + own jobs), general, messages, notifications, ads browse, subscriptions, reports, search, blogs, uploads\n\n## Variables\n`baseUrl` (default `http://localhost:4000/api/v1`), `accessToken`, `adminToken`, `sellerToken`, `customerToken`, plus entity IDs (`messageId`, `sessionId`, …).\n\n## Notable query filters\n- Contacts: `status` (pending|accepted|declined), `direction` (incoming|outgoing), `country`, `search`\n- Feed / General / Marketplace / Recruitment / Ads: `mine`; Marketplace also `saved`; Recruitment also `since` (7d|30d|90d)\n- Notifications: `unread`\n- Search: `q` (required), `types`, `limit`\n\n## Removed / not invented\n- Old nested **Dashboard > Admin/Supplier/Customer** mega-folder (duplicated other folders) — removed.\n- Duplicate **Platform Settings** under Admin (kept under Settings only).\n- **No** Supplier `GET /dashboard` or Admin “recent activity” — those APIs do not exist.\n- Frontend `ADMIN.MANAGE_USERS` → `/admin/users` is **not** a real route (users are under `/users`). Marked by omission.\n- Stripe webhook `POST /subscriptions/webhook` is server-only (raw body + Stripe signature) — not included.\n\n## Auth headers\nCollection default Bearer `{{accessToken}}`. Role folders override with `adminToken` / `sellerToken` / `customerToken`. Login test script fills the matching role token when `user.role` is present in the login response.",
+    "description": "Role + feature organized collection matching frontend (`web/src/api/httpEndpoints.js`) and backend modules (`server/src/modules/{admin,supplier,user}`).\n\n## Structure\n- **Auth** — register / login / refresh / logout / forgot + reset password / auth me\n- **Public** — health, blog read, subscription plans\n- **Admin** — dashboard, statistics, settings, users, profile, blogs, reports, ads review, marketplace/recruitment/general moderation\n- **Supplier** — ads, marketplace, recruitment, general, blogs (read), contacts, notifications, messages, profile, uploads; Dashboard = composed requests only\n- **User** — profile, feed, contacts, marketplace (browse + own listings), recruitment (browse + own jobs), general, messages, notifications, ads browse, subscriptions, reports, search, blogs, uploads\n\n## Variables\n`baseUrl` (default `http://localhost:4000/api/v1`), `accessToken`, `adminToken`, `sellerToken`, `customerToken`, plus entity IDs (`messageId`, `sessionId`, …).\n\n## Notable query filters\n- Contacts: `status` (pending|accepted|declined), `direction` (incoming|outgoing), `country`, `search`\n- Feed / General / Marketplace / Recruitment / Ads: `mine`; Marketplace also `saved`; Recruitment also `since` (7d|30d|90d)\n- Notifications: `unread`\n- Search: `q` (required), `types`, `limit`\n\n## Removed / not invented\n- Old nested **Dashboard > Admin/Supplier/Customer** mega-folder (duplicated other folders) — removed.\n- Duplicate **Platform Settings** under Admin (kept under Settings only).\n- **No** Supplier `GET /dashboard` or Admin “recent activity” — those APIs do not exist.\n- Frontend `ADMIN.MANAGE_USERS` → `/admin/users` is **not** a real route (users are under `/users`). Marked by omission.\n- Stripe webhook `POST /subscriptions/webhook` is server-only (raw body + Stripe signature) — not included.\n\n## Auth headers\nCollection default Bearer `{{accessToken}}`. Role folders override with `adminToken` / `sellerToken` / `customerToken`. Login test script fills the matching role token when `user.role` is present in the login response.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
   },
@@ -26,6 +26,10 @@
     },
     {
       "key": "refreshToken",
+      "value": ""
+    },
+    {
+      "key": "resetToken",
       "value": ""
     },
     {
@@ -263,6 +267,76 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
+            },
+            "description": "Email a single-use password reset link (`{CLIENT_URL}/reset-password?token=...`). Always returns the same message whether or not the email is registered. Issuing a new link invalidates older unused ones. Without SMTP configured (dev), the email is logged to the server console.\n\n**Auth:** none (rate limited)\n**Body:** `{ email }`\n**Status:** 200",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"jane.doe@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
+            },
+            "description": "Set a new password using the token from the reset email. The token is single-use and expires after `PASSWORD_RESET_TTL_MINUTES` (default 30). All existing sessions (refresh tokens) are revoked.\n\n**Auth:** none (rate limited)\n**Body:** `{ token, password, confirmPassword }` — password: 8+ chars, uppercase, number, symbol\n**Status:** 200 · 400 invalid/expired token · 422 validation",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"password\": \"NewStr0ng!pass\",\n  \"confirmPassword\": \"NewStr0ng!pass\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

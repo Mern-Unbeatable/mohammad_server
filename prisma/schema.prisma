@@ -216,6 +216,7 @@ model User {
   subscription Subscription?
 
   refreshTokens        RefreshToken[]
+  passwordResetTokens  PasswordResetToken[]
   feedPosts            FeedPost[]
   feedComments         FeedComment[]
   feedReactions        FeedReaction[]
@@ -300,6 +301,18 @@ model RefreshToken {
   expiresAt DateTime
   revokedAt DateTime?
   createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([userId])
 }

@@ -25,6 +25,26 @@ export const authController = {
     sendSuccess(res, { data: { message: "Logged out" } });
   }),
 
+  forgotPassword: asyncHandler(async (req: Request, res: Response) => {
+    await authService.forgotPassword(req.body);
+    sendSuccess(res, {
+      data: {
+        message:
+          "If an account exists for that email, a password reset link has been sent.",
+      },
+    });
+  }),
+
+  resetPassword: asyncHandler(async (req: Request, res: Response) => {
+    await authService.resetPassword(req.body);
+    sendSuccess(res, {
+      data: {
+        message:
+          "Your password has been reset. Please sign in with your new password.",
+      },
+    });
+  }),
+
   me: asyncHandler(async (req: Request, res: Response) => {
     const result = await authService.me(req.user!.id);
     sendSuccess(res, { data: result });

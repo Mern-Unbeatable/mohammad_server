@@ -16,6 +16,8 @@ List endpoints accept common query params: `page` (default 1), `pageSize` (defau
 | POST   | `/login`    | Public | Login                                 |
 | POST   | `/refresh`  | Public | Rotate refresh token → new token pair |
 | POST   | `/logout`   | Public | Revoke a refresh token                |
+| POST   | `/forgot-password` | Public | Email a password reset link    |
+| POST   | `/reset-password`  | Public | Reset password with emailed token (revokes sessions) |
 | GET    | `/me`       | Bearer | Current authenticated user            |
 
 **Register body**
@@ -36,6 +38,31 @@ List endpoints accept common query params: `page` (default 1), `pageSize` (defau
   "acceptedTerms": true
 }
 ```
+
+**Forgot / reset password**
+
+`POST /forgot-password` with `{ "email": "elise@lab.com" }` always returns
+`200 { "message": "If an account exists for that email, a password reset link has been sent." }`
+so registered emails can't be discovered. The email links to
+`{CLIENT_URL}/reset-password?token=<token>`; issuing a new link invalidates
+older unused ones. Configure `SMTP_*` / `MAIL_FROM` to send real emails —
+without `SMTP_HOST` the email is logged to the server console (development
+only; production throws and logs an error).
+
+`POST /reset-password` body:
+
+```json
+{
+  "token": "<token from email>",
+  "password": "N3w!pass",
+  "confirmPassword": "N3w!pass"
+}
+```
+
+Tokens are single-use and expire after `PASSWORD_RESET_TTL_MINUTES`
+(default 30). Invalid, used or expired tokens return `400 BAD_REQUEST`.
+A successful reset revokes all refresh tokens (every session signs out).
+Both endpoints share the auth rate limiter.
 
 ---
 

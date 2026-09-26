@@ -2,10 +2,13 @@ import crypto from "node:crypto";
 import { ProfileType, Role, SubscriptionStatus } from "@prisma/client";
 import { prisma } from "@/infrastructure/prisma";
 import {
+  BadRequestError,
   ConflictError,
   ForbiddenError,
   UnauthenticatedError,
 } from "@/shared/errors/AppError";
+import { sendMail } from "@/infrastructure/mailer";
+import { logger } from "@/config/logger";
 import { hashPassword, verifyPassword } from "@/shared/utils/password";
 import {
   hashToken,
@@ -19,7 +22,12 @@ import {
   userWithRelations,
 } from "@/shared/serializers/user.serializer";
 import { env } from "@/config/env";
-import type { LoginInput, RegisterInput } from "./auth.validators";
+import type {
+  ForgotPasswordInput,
+  LoginInput,
+  RegisterInput,
+  ResetPasswordInput,
+} from "./auth.validators";
 
 const PROFILE_TYPE_MAP: Record<RegisterInput["profileType"], ProfileType> = {
   laboratory: ProfileType.LABORATORY,
@@ -68,6 +76,31 @@ const issueTokens = async (user: { id: string; role: Role; email: string }) => {
   });
 
   return { accessToken, refreshToken };
+};
+
+const INVALID_RESET_TOKEN_MESSAGE =
+  "This password reset link is invalid or has expired";
+
+const sendPasswordResetEmail = async (email: string, token: string) => {
+  const resetUrl = `${env.clientUrl.replace(/\/$/, "")}/reset-password?token=${token}`;
+  const minutes = env.passwordResetTtlMinutes;
+
+  await sendMail({
+    to: email,
+    subject: "Reset your Lab Unity password",
+    text: [
+      "We received a request to reset your Lab Unity password.",
+      `Open this link to choose a new password (valid for ${minutes} minutes):`,
+      resetUrl,
+      "",
+      "If you didn't request this, you can safely ignore this email.",
+    ].join("\n"),
+    html: `
+      <p>We received a request to reset your Lab Unity password.</p>
+      <p><a href="${resetUrl}">Choose a new password</a> — this link is valid for ${minutes} minutes.</p>
+      <p>If you didn't request this, you can safely ignore this email.</p>
+    `,
+  });
 };
 
 export const authService = {
@@ -182,6 +215,73 @@ export const authService = {
       where: { tokenHash, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+  },
+
+  /**
+   * Always resolves without revealing whether the email is registered.
+   * Issuing a new link invalidates any previously issued, unused ones.
+   */
+  async forgotPassword(input: ForgotPasswordInput) {
+    const user = await prisma.user.findUnique({
+      where: { email: input.email },
+      select: { id: true, email: true, status: true },
+    });
+    if (!user || user.status === "BANNED") return;
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const now = new Date();
+
+    await prisma.$transaction([
+      prisma.passwordResetToken.updateMany({
+        where: { userId: user.id, usedAt: null },
+        data: { usedAt: now },
+      }),
+      prisma.passwordResetToken.create({
+        data: {
+          userId: user.id,
+          tokenHash: hashToken(token),
+          expiresAt: new Date(
+            now.getTime() + env.passwordResetTtlMinutes * 60 * 1000,
+          ),
+        },
+      }),
+    ]);
+
+    try {
+      await sendPasswordResetEmail(user.email, token);
+    } catch (error) {
+      logger.error(
+        { err: error, userId: user.id },
+        "Failed to send password reset email",
+      );
+    }
+  },
+
+  async resetPassword(input: ResetPasswordInput) {
+    const stored = await prisma.passwordResetToken.findUnique({
+      where: { tokenHash: hashToken(input.token) },
+    });
+    if (!stored || stored.usedAt || stored.expiresAt < new Date()) {
+      throw new BadRequestError(INVALID_RESET_TOKEN_MESSAGE);
+    }
+
+    const passwordHash = await hashPassword(input.password);
+    const now = new Date();
+
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: stored.userId },
+        data: { passwordHash },
+      }),
+      prisma.passwordResetToken.updateMany({
+        where: { userId: stored.userId, usedAt: null },
+        data: { usedAt: now },
+      }),
+      prisma.refreshToken.updateMany({
+        where: { userId: stored.userId, revokedAt: null },
+        data: { revokedAt: now },
+      }),
+    ]);
   },
 
   async me(userId: string) {
