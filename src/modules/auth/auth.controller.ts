@@ -35,6 +35,11 @@ export const authController = {
     });
   }),
 
+  verifyResetToken: asyncHandler(async (req: Request, res: Response) => {
+    const result = await authService.verifyResetToken(req.body.token);
+    sendSuccess(res, { data: result });
+  }),
+
   resetPassword: asyncHandler(async (req: Request, res: Response) => {
     await authService.resetPassword(req.body);
     sendSuccess(res, {

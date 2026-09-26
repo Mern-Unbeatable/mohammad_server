@@ -9,6 +9,7 @@ import {
   refreshSchema,
   registerSchema,
   resetPasswordSchema,
+  verifyResetTokenSchema,
 } from "./auth.validators";
 
 const router = Router();
@@ -40,6 +41,13 @@ router.post(
   authRateLimiter,
   validate({ body: forgotPasswordSchema }),
   authController.forgotPassword,
+);
+// POST with the token in the body so it never appears in request-URL logs.
+router.post(
+  "/reset-password/verify",
+  authRateLimiter,
+  validate({ body: verifyResetTokenSchema }),
+  authController.verifyResetToken,
 );
 router.post(
   "/reset-password",
