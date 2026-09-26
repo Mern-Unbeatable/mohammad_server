@@ -179,6 +179,11 @@ enum ModerationAction {
   DISMISS
 }
 
+enum ConversationRole {
+  OWNER
+  MEMBER
+}
+
 enum NotificationType {
   CONNECTION_REQUEST
   CONNECTION_ACCEPTED
@@ -544,6 +549,8 @@ model Conversation {
   id        String   @id @default(uuid())
   isGroup   Boolean  @default(false)
   name      String?
+  /// Sorted "userA:userB" key for 1:1 conversations; guarantees one thread per pair.
+  directKey String?  @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -554,13 +561,14 @@ model Conversation {
 }
 
 model ConversationParticipant {
-  id             String       @id @default(uuid())
+  id             String           @id @default(uuid())
   conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   userId         String
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           ConversationRole @default(MEMBER)
   lastReadAt     DateTime?
-  createdAt      DateTime     @default(now())
+  createdAt      DateTime         @default(now())
 
   @@unique([conversationId, userId])
   @@index([userId])
@@ -572,7 +580,9 @@ model Message {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   senderId       String
   sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
-  body           String
+  body           String       @default("")
+  /// Array of { url, name, mimeType, size } pointing at files from /uploads.
+  attachments    Json         @default("[]")
   createdAt      DateTime     @default(now())
 
   @@index([conversationId, createdAt])

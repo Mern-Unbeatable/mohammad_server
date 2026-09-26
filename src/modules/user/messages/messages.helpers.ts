@@ -1,0 +1,147 @@
+import { Prisma, Role } from "@prisma/client";
+import { env } from "@/config/env";
+
+export const participantUserInclude = {
+  user: { include: { profile: true } },
+} satisfies Prisma.ConversationParticipantInclude;
+
+export const conversationInclude = {
+  participants: { include: participantUserInclude, orderBy: { createdAt: "asc" } },
+  messages: { orderBy: { createdAt: "desc" }, take: 1 },
+} satisfies Prisma.ConversationInclude;
+
+export type ConversationWithRelations = Prisma.ConversationGetPayload<{
+  include: typeof conversationInclude;
+}>;
+
+type UserWithProfile = Prisma.UserGetPayload<{ include: { profile: true } }>;
+
+export interface MessageAttachment {
+  url: string;
+  name: string;
+  mimeType: string;
+  size: number;
+}
+
+/** One key per user pair, independent of who started the conversation. */
+export const buildDirectKey = (a: string, b: string): string =>
+  [a, b].sort().join(":");
+
+export const displayNameOf = (user: UserWithProfile): string => {
+  const full = user.profile
+    ? `${user.profile.firstName} ${user.profile.lastName}`.trim()
+    : "";
+  return full || user.email;
+};
+
+export const initialsOf = (user: UserWithProfile): string => {
+  if (user.profile?.initials) return user.profile.initials;
+  const first = user.profile?.firstName?.[0] ?? user.email[0] ?? "";
+  const last = user.profile?.lastName?.[0] ?? "";
+  return `${first}${last}`.toUpperCase();
+};
+
+export const subtitleOf = (user: UserWithProfile): string | null => {
+  const parts = [user.profile?.title, user.profile?.company].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+};
+
+/** Frontend route that shows the inbox for a given role. */
+export const messagesPathForRole = (role: Role): string => {
+  if (role === Role.SUPPLIER) return "/supplier/messages";
+  if (role === Role.ADMIN) return "/admin/chat";
+  return "/messages";
+};
+
+export const messagesLinkFor = (role: Role, conversationId: string): string =>
+  `${messagesPathForRole(role)}?conversation=${conversationId}`;
+
+export const truncate = (text: string, max = 120): string =>
+  text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+
+/** Attachments must reference files previously uploaded to this server. */
+export const isOwnUploadUrl = (url: string): boolean =>
+  url.startsWith(`${env.upload.publicUrl}/${env.upload.dir}/`);
+
+export const parseAttachments = (value: Prisma.JsonValue): MessageAttachment[] =>
+  Array.isArray(value) ? (value as unknown as MessageAttachment[]) : [];
+
+export const previewOf = (
+  message: { body: string; attachments: Prisma.JsonValue } | undefined,
+): string | null => {
+  if (!message) return null;
+  if (message.body) return message.body;
+  const count = parseAttachments(message.attachments).length;
+  if (count === 0) return null;
+  return count === 1 ? "Sent an attachment" : `Sent ${count} attachments`;
+};
+
+export const serializeParticipant = (
+  participant: ConversationWithRelations["participants"][number],
+) => ({
+  id: participant.userId,
+  name: displayNameOf(participant.user),
+  initials: initialsOf(participant.user),
+  avatar: participant.user.profile?.avatarUrl ?? null,
+  subtitle: subtitleOf(participant.user),
+  role: participant.role,
+  lastReadAt: participant.lastReadAt,
+});
+
+export const serializeConversation = (
+  conversation: ConversationWithRelations,
+  userId: string,
+  unreadCount = 0,
+) => {
+  const others = conversation.participants.filter((p) => p.userId !== userId);
+  const self = conversation.participants.find((p) => p.userId === userId);
+  const primary = others[0]?.user;
+  const lastMessage = conversation.messages[0];
+
+  const groupName = conversation.name ?? "Group";
+
+  return {
+    id: conversation.id,
+    isGroup: conversation.isGroup,
+    name: conversation.isGroup
+      ? groupName
+      : primary
+        ? displayNameOf(primary)
+        : "Former member",
+    subtitle: conversation.isGroup
+      ? `${conversation.participants.length} members`
+      : primary
+        ? subtitleOf(primary)
+        : null,
+    initials: conversation.isGroup
+      ? groupName.slice(0, 2).toUpperCase()
+      : primary
+        ? initialsOf(primary)
+        : "?",
+    avatar: conversation.isGroup ? null : (primary?.profile?.avatarUrl ?? null),
+    otherUserId: conversation.isGroup ? null : (primary?.id ?? null),
+    preview: previewOf(lastMessage),
+    time: lastMessage?.createdAt ?? conversation.updatedAt,
+    unreadCount,
+    myRole: self?.role ?? null,
+    lastReadAt: self?.lastReadAt ?? null,
+    participants: conversation.participants.map(serializeParticipant),
+  };
+};
+
+type MessageWithSender = Prisma.MessageGetPayload<{
+  include: { sender: { include: { profile: true } } };
+}>;
+
+export const serializeMessage = (message: MessageWithSender, userId: string) => ({
+  id: message.id,
+  conversationId: message.conversationId,
+  body: message.body,
+  attachments: parseAttachments(message.attachments),
+  from: message.senderId === userId ? ("me" as const) : ("them" as const),
+  senderId: message.senderId,
+  sender: displayNameOf(message.sender),
+  senderAvatar: message.sender.profile?.avatarUrl ?? null,
+  senderInitials: initialsOf(message.sender),
+  time: message.createdAt,
+});

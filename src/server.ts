@@ -2,6 +2,7 @@ import { createApp } from "@/app";
 import { env } from "@/config/env";
 import { logger } from "@/config/logger";
 import { connectDatabase, disconnectDatabase } from "@/infrastructure/prisma";
+import { closeRealtime, initRealtime } from "@/realtime/socket";
 
 const bootstrap = async (): Promise<void> => {
   await connectDatabase();
@@ -11,9 +12,11 @@ const bootstrap = async (): Promise<void> => {
     logger.info(`Server listening on port ${env.port} (${env.nodeEnv})`);
     logger.info(`API base: ${env.apiPrefix}`);
   });
+  initRealtime(server);
 
   const shutdown = async (signal: string): Promise<void> => {
     logger.info(`${signal} received, shutting down gracefully`);
+    await closeRealtime();
     server.close(async () => {
       await disconnectDatabase();
       process.exit(0);

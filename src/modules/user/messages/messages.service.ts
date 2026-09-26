@@ -1,5 +1,13 @@
-import { Prisma } from "@prisma/client";
+import {
+  ConnectionStatus,
+  ConversationRole,
+  NotificationType,
+  Prisma,
+  Role,
+  UserStatus,
+} from "@prisma/client";
 import { prisma } from "@/infrastructure/prisma";
+import { logger } from "@/config/logger";
 import {
   BadRequestError,
   ForbiddenError,
@@ -7,240 +15,415 @@ import {
 } from "@/shared/errors/AppError";
 import { buildPaginationMeta } from "@/shared/http/apiResponse";
 import { toPrismaPagination } from "@/shared/http/pagination";
+import { emitToUsers } from "@/realtime/socket";
+import {
+  buildDirectKey,
+  conversationInclude,
+  displayNameOf,
+  initialsOf,
+  messagesLinkFor,
+  previewOf,
+  serializeConversation,
+  serializeMessage,
+  subtitleOf,
+  truncate,
+} from "./messages.helpers";
+import type {
+  ConversationListQuery,
+  MessageContent,
+  MessageListQuery,
+  RecipientsQuery,
+} from "./messages.validators";
 
-const participantInclude = {
-  participants: { include: { user: { include: { profile: true } } } },
-  messages: { orderBy: { createdAt: "desc" as const }, take: 1 },
-} satisfies Prisma.ConversationInclude;
+const senderInclude = {
+  sender: { include: { profile: true } },
+} satisfies Prisma.MessageInclude;
 
-type ConversationPayload = Prisma.ConversationGetPayload<{
-  include: typeof participantInclude;
-}>;
+/** Every whitespace-separated term must match the user's name or email. */
+const userSearchWhere = (search?: string): Prisma.UserWhereInput => {
+  const terms = (search ?? "").split(/\s+/).filter(Boolean).slice(0, 3);
+  if (terms.length === 0) return {};
+  return {
+    AND: terms.map((term) => ({
+      OR: [
+        { email: { contains: term, mode: "insensitive" as const } },
+        { profile: { firstName: { contains: term, mode: "insensitive" as const } } },
+        { profile: { lastName: { contains: term, mode: "insensitive" as const } } },
+      ],
+    })),
+  };
+};
 
 const assertMembership = async (conversationId: string, userId: string) => {
   const participant = await prisma.conversationParticipant.findUnique({
     where: { conversationId_userId: { conversationId, userId } },
+    include: { conversation: { select: { isGroup: true, name: true } } },
   });
   if (!participant)
     throw new ForbiddenError("You are not a participant in this conversation");
   return participant;
 };
 
-const serializeConversation = (
-  conversation: ConversationPayload,
+const assertGroupOwner = async (conversationId: string, userId: string) => {
+  const participant = await assertMembership(conversationId, userId);
+  if (!participant.conversation.isGroup) {
+    throw new BadRequestError("Only group conversations can be managed");
+  }
+  if (participant.role !== ConversationRole.OWNER) {
+    throw new ForbiddenError("Only the group owner can do this");
+  }
+  return participant;
+};
+
+const participantIdsOf = async (conversationId: string): Promise<string[]> => {
+  const rows = await prisma.conversationParticipant.findMany({
+    where: { conversationId },
+    select: { userId: true },
+  });
+  return rows.map((row) => row.userId);
+};
+
+const assertActiveUsers = async (ids: string[]) => {
+  if (ids.length === 0) return;
+  const users = await prisma.user.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, status: true },
+  });
+  if (users.length !== ids.length) throw new NotFoundError("User not found");
+  if (users.some((user) => user.status !== UserStatus.ACTIVE)) {
+    throw new BadRequestError("Some selected users are not active");
+  }
+};
+
+/** Unread = messages from others newer than the caller's lastReadAt. */
+const unreadCountsFor = async (
   userId: string,
-) => {
-  const others = conversation.participants.filter((p) => p.userId !== userId);
-  const primary = others[0]?.user;
-  const lastMessage = conversation.messages[0];
-  const self = conversation.participants.find((p) => p.userId === userId);
+  conversationIds: string[],
+): Promise<Map<string, number>> => {
+  if (conversationIds.length === 0) return new Map();
+  const rows = await prisma.$queryRaw<{ conversationId: string; count: bigint }[]>`
+    SELECT m."conversationId", COUNT(*)::bigint AS "count"
+    FROM "Message" m
+    JOIN "ConversationParticipant" p
+      ON p."conversationId" = m."conversationId" AND p."userId" = ${userId}
+    WHERE m."senderId" <> ${userId}
+      AND (p."lastReadAt" IS NULL OR m."createdAt" > p."lastReadAt")
+      AND m."conversationId" IN (${Prisma.join(conversationIds)})
+    GROUP BY m."conversationId"
+  `;
+  return new Map(rows.map((row) => [row.conversationId, Number(row.count)]));
+};
 
-  const displayName = conversation.isGroup
-    ? conversation.name
-    : primary?.profile
-      ? `${primary.profile.firstName} ${primary.profile.lastName}`.trim()
-      : primary?.email;
+/**
+ * One unread notification per conversation per recipient; later messages
+ * don't pile up while the earlier notification is still unread.
+ */
+const notifyNewMessage = async (params: {
+  conversationId: string;
+  isGroup: boolean;
+  groupName: string | null;
+  senderName: string;
+  preview: string;
+  recipientIds: string[];
+}) => {
+  if (params.recipientIds.length === 0) return;
+  const recipients = await prisma.user.findMany({
+    where: { id: { in: params.recipientIds } },
+    select: { id: true, role: true },
+  });
+  const targets = recipients.map((recipient) => ({
+    userId: recipient.id,
+    link: messagesLinkFor(recipient.role, params.conversationId),
+  }));
 
-  return {
-    id: conversation.id,
-    isGroup: conversation.isGroup,
-    name: displayName,
-    subtitle: conversation.isGroup
-      ? `${conversation.participants.length} members`
-      : primary?.profile
-        ? [primary.profile.title, primary.profile.company]
-            .filter(Boolean)
-            .join(" · ")
-        : null,
-    initials: conversation.isGroup
-      ? conversation.name?.slice(0, 2).toUpperCase()
-      : primary?.profile?.initials,
-    avatar: conversation.isGroup ? null : primary?.profile?.avatarUrl,
-    preview: lastMessage?.body ?? null,
-    time: lastMessage?.createdAt ?? conversation.updatedAt,
-    participants: conversation.participants.map((p) => ({
-      id: p.userId,
-      name: p.user.profile
-        ? `${p.user.profile.firstName} ${p.user.profile.lastName}`.trim()
-        : p.user.email,
-    })),
-    lastReadAt: self?.lastReadAt ?? null,
-  };
+  const pending = await prisma.notification.findMany({
+    where: { read: false, OR: targets },
+    select: { userId: true },
+  });
+  const alreadyNotified = new Set(pending.map((row) => row.userId));
+
+  const data = targets
+    .filter((target) => !alreadyNotified.has(target.userId))
+    .map((target) => ({
+      userId: target.userId,
+      type: params.isGroup ? NotificationType.GROUP_MESSAGE : NotificationType.MESSAGE,
+      title: params.isGroup
+        ? `New message in ${params.groupName ?? "a group"}`
+        : `New message from ${params.senderName}`,
+      subtitle: params.isGroup
+        ? truncate(`${params.senderName}: ${params.preview}`)
+        : truncate(params.preview),
+      link: target.link,
+    }));
+  if (data.length > 0) await prisma.notification.createMany({ data });
 };
 
 export const messagesService = {
-  async listConversations(
-    userId: string,
-    query: { type?: string; search?: string },
-  ) {
-    const conversations = await prisma.conversation.findMany({
-      where: {
-        participants: { some: { userId } },
-        ...(query.type ? { isGroup: query.type === "group" } : {}),
-      },
-      include: participantInclude,
-      orderBy: { updatedAt: "desc" },
-    });
-
-    let data = conversations.map((c) => serializeConversation(c, userId));
-    if (query.search) {
-      const q = query.search.toLowerCase();
-      data = data.filter(
-        (c) =>
-          c.name?.toLowerCase().includes(q) ||
-          c.preview?.toLowerCase().includes(q),
-      );
-    }
-    return { data };
-  },
-
-  async getMessages(
-    userId: string,
-    conversationId: string,
-    query: { page: number; pageSize: number; sort: "asc" | "desc" },
-  ) {
-    await assertMembership(conversationId, userId);
+  async listConversations(userId: string, query: ConversationListQuery) {
+    const terms = userSearchWhere(query.search);
+    const where: Prisma.ConversationWhereInput = {
+      participants: { some: { userId } },
+      ...(query.type ? { isGroup: query.type === "group" } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              {
+                isGroup: true,
+                name: { contains: query.search, mode: "insensitive" },
+              },
+              {
+                isGroup: false,
+                participants: {
+                  some: { userId: { not: userId }, user: terms },
+                },
+              },
+            ],
+          }
+        : {}),
+    };
     const { skip, take } = toPrismaPagination(query.page, query.pageSize);
 
     const [rows, total] = await prisma.$transaction([
-      prisma.message.findMany({
-        where: { conversationId },
-        include: { sender: { include: { profile: true } } },
-        orderBy: { createdAt: "desc" },
+      prisma.conversation.findMany({
+        where,
+        include: conversationInclude,
+        orderBy: { updatedAt: "desc" },
         skip,
         take,
       }),
-      prisma.message.count({ where: { conversationId } }),
+      prisma.conversation.count({ where }),
     ]);
 
-    // Mark conversation as read up to now.
-    await prisma.conversationParticipant.update({
-      where: { conversationId_userId: { conversationId, userId } },
-      data: { lastReadAt: new Date() },
-    });
-
-    const data = rows
-      .map((m) => ({
-        id: m.id,
-        body: m.body,
-        from: m.senderId === userId ? "me" : "them",
-        senderId: m.senderId,
-        sender: m.sender.profile
-          ? `${m.sender.profile.firstName} ${m.sender.profile.lastName}`.trim()
-          : m.sender.email,
-        time: m.createdAt,
-      }))
-      .reverse();
+    const unread = await unreadCountsFor(
+      userId,
+      rows.map((row) => row.id),
+    );
 
     return {
-      data,
+      data: rows.map((row) =>
+        serializeConversation(row, userId, unread.get(row.id) ?? 0),
+      ),
       meta: buildPaginationMeta(query.page, query.pageSize, total),
     };
   },
 
-  /** Reuses an existing 1:1 conversation or creates one, then posts a message. */
+  async getConversation(userId: string, conversationId: string) {
+    await assertMembership(conversationId, userId);
+    const conversation = await prisma.conversation.findUniqueOrThrow({
+      where: { id: conversationId },
+      include: conversationInclude,
+    });
+    const unread = await unreadCountsFor(userId, [conversationId]);
+    return serializeConversation(
+      conversation,
+      userId,
+      unread.get(conversationId) ?? 0,
+    );
+  },
+
+  /** Cursor-paginated thread (oldest→newest within the page). */
+  async getMessages(
+    userId: string,
+    conversationId: string,
+    query: MessageListQuery,
+  ) {
+    await assertMembership(conversationId, userId);
+
+    const rows = await prisma.message.findMany({
+      where: {
+        conversationId,
+        ...(query.before ? { createdAt: { lt: query.before } } : {}),
+      },
+      include: senderInclude,
+      orderBy: { createdAt: "desc" },
+      take: query.pageSize + 1,
+    });
+
+    const hasMore = rows.length > query.pageSize;
+    const page = rows.slice(0, query.pageSize).reverse();
+
+    // Opening the latest page counts as reading the conversation.
+    if (!query.before) await this.markRead(userId, conversationId);
+
+    return {
+      data: page.map((message) => serializeMessage(message, userId)),
+      meta: { pageSize: query.pageSize, hasMore },
+    };
+  },
+
+  async markRead(userId: string, conversationId: string) {
+    await assertMembership(conversationId, userId);
+    const lastReadAt = new Date();
+    await prisma.conversationParticipant.update({
+      where: { conversationId_userId: { conversationId, userId } },
+      data: { lastReadAt },
+    });
+    const participants = await participantIdsOf(conversationId);
+    emitToUsers(
+      participants.filter((id) => id !== userId),
+      "conversation:read",
+      { conversationId, userId, lastReadAt },
+    );
+    return { conversationId, lastReadAt };
+  },
+
+  /** Reuses the pair's 1:1 conversation (or creates it), then posts a message. */
   async startDirect(userId: string, participantId: string, message: string) {
     if (userId === participantId)
       throw new BadRequestError("You cannot message yourself");
-    const target = await prisma.user.findUnique({
-      where: { id: participantId },
-    });
-    if (!target) throw new NotFoundError("User not found");
+    await assertActiveUsers([participantId]);
 
-    const existing = await prisma.conversation.findFirst({
-      where: {
-        isGroup: false,
-        AND: [
-          { participants: { some: { userId } } },
-          { participants: { some: { userId: participantId } } },
-        ],
-      },
+    const directKey = buildDirectKey(userId, participantId);
+    let conversation = await prisma.conversation.findUnique({
+      where: { directKey },
+    });
+    if (!conversation) {
+      try {
+        conversation = await prisma.conversation.create({
+          data: { isGroup: false, directKey },
+        });
+      } catch (error) {
+        // A concurrent request created it first.
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          conversation = await prisma.conversation.findUniqueOrThrow({
+            where: { directKey },
+          });
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    await prisma.conversationParticipant.createMany({
+      data: [
+        { conversationId: conversation.id, userId },
+        { conversationId: conversation.id, userId: participantId },
+      ],
+      skipDuplicates: true,
     });
 
-    const conversation =
-      existing ??
-      (await prisma.conversation.create({
-        data: {
-          isGroup: false,
-          participants: { create: [{ userId }, { userId: participantId }] },
-        },
-      }));
-
-    await this.sendMessage(userId, conversation.id, message);
-    const full = await prisma.conversation.findUniqueOrThrow({
-      where: { id: conversation.id },
-      include: participantInclude,
+    await this.sendMessage(userId, conversation.id, {
+      body: message,
+      attachments: [],
     });
-    return serializeConversation(full, userId);
+    return this.getConversation(userId, conversation.id);
   },
 
   async createGroup(userId: string, name: string, participantIds: string[]) {
-    const uniqueIds = Array.from(new Set([userId, ...participantIds]));
+    const others = Array.from(new Set(participantIds)).filter(
+      (id) => id !== userId,
+    );
+    if (others.length === 0) {
+      throw new BadRequestError("Add at least one other member to the group");
+    }
+    await assertActiveUsers(others);
+
     const conversation = await prisma.conversation.create({
       data: {
         isGroup: true,
         name,
-        participants: { create: uniqueIds.map((id) => ({ userId: id })) },
+        participants: {
+          create: [
+            { userId, role: ConversationRole.OWNER },
+            ...others.map((id) => ({ userId: id })),
+          ],
+        },
       },
-      include: participantInclude,
+      include: conversationInclude,
     });
-    return serializeConversation(conversation, userId);
+
+    emitToUsers(others, "conversation:new", { conversationId: conversation.id });
+    return serializeConversation(conversation, userId, 0);
   },
 
-  async sendMessage(userId: string, conversationId: string, body: string) {
-    await assertMembership(conversationId, userId);
+  async sendMessage(
+    userId: string,
+    conversationId: string,
+    content: MessageContent,
+  ) {
+    const membership = await assertMembership(conversationId, userId);
 
-    const message = await prisma.message.create({
-      data: { conversationId, senderId: userId, body },
-    });
-    await prisma.conversation.update({
-      where: { id: conversationId },
-      data: { updatedAt: new Date() },
+    const [message] = await prisma.$transaction([
+      prisma.message.create({
+        data: {
+          conversationId,
+          senderId: userId,
+          body: content.body,
+          attachments: content.attachments as unknown as Prisma.InputJsonValue,
+        },
+        include: senderInclude,
+      }),
+      prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() },
+      }),
+    ]);
+
+    const participants = await participantIdsOf(conversationId);
+    // `from` is viewer-relative; clients derive it from senderId.
+    emitToUsers(participants, "message:new", {
+      conversationId,
+      message: { ...serializeMessage(message, userId), from: undefined },
     });
 
-    // Notify other participants.
-    const others = await prisma.conversationParticipant.findMany({
-      where: { conversationId, userId: { not: userId } },
-      include: { conversation: true },
-    });
-    await prisma.notification.createMany({
-      data: others.map((p) => ({
-        userId: p.userId,
-        type: p.conversation.isGroup
-          ? ("GROUP_MESSAGE" as const)
-          : ("MESSAGE" as const),
-        title: "New message",
-        link: `/messages`,
-      })),
-    });
+    notifyNewMessage({
+      conversationId,
+      isGroup: membership.conversation.isGroup,
+      groupName: membership.conversation.name,
+      senderName: displayNameOf(message.sender),
+      preview: previewOf(message) ?? "",
+      recipientIds: participants.filter((id) => id !== userId),
+    }).catch((err) => logger.warn({ err }, "Failed to create message notifications"));
 
-    return {
-      id: message.id,
-      body: message.body,
-      from: "me" as const,
-      senderId: userId,
-      time: message.createdAt,
-    };
+    return serializeMessage(message, userId);
   },
 
-  /** Leave a conversation (removes participant row). */
+  /** Leave a conversation; the oldest remaining member inherits group ownership. */
   async leave(userId: string, conversationId: string) {
-    await assertMembership(conversationId, userId);
+    const membership = await assertMembership(conversationId, userId);
+
     await prisma.conversationParticipant.delete({
       where: { conversationId_userId: { conversationId, userId } },
     });
 
-    const remaining = await prisma.conversationParticipant.count({
+    const remaining = await prisma.conversationParticipant.findMany({
       where: { conversationId },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, userId: true, role: true },
     });
-    if (remaining === 0) {
+
+    if (remaining.length === 0) {
       await prisma.conversation.delete({ where: { id: conversationId } });
+      return { conversationId, message: "Left conversation" };
     }
 
-    return { message: "Left conversation" };
+    if (!membership.conversation.isGroup) {
+      // Next message between the pair starts a fresh thread.
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { directKey: null },
+      });
+    } else if (
+      membership.role === ConversationRole.OWNER &&
+      !remaining.some((p) => p.role === ConversationRole.OWNER)
+    ) {
+      await prisma.conversationParticipant.update({
+        where: { id: remaining[0].id },
+        data: { role: ConversationRole.OWNER },
+      });
+    }
+
+    emitToUsers(
+      remaining.map((p) => p.userId),
+      "conversation:updated",
+      { conversationId },
+    );
+    return { conversationId, message: "Left conversation" };
   },
 
-  /** Delete own message. */
   async deleteMessage(
     userId: string,
     conversationId: string,
@@ -255,6 +438,134 @@ export const messagesService = {
       throw new ForbiddenError("You can only delete your own messages");
     }
     await prisma.message.delete({ where: { id: messageId } });
-    return { message: "Message deleted" };
+
+    emitToUsers(await participantIdsOf(conversationId), "message:deleted", {
+      conversationId,
+      messageId,
+    });
+    return { conversationId, messageId, message: "Message deleted" };
+  },
+
+  async renameGroup(userId: string, conversationId: string, name: string) {
+    await assertGroupOwner(conversationId, userId);
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { name },
+    });
+    emitToUsers(await participantIdsOf(conversationId), "conversation:updated", {
+      conversationId,
+    });
+    return this.getConversation(userId, conversationId);
+  },
+
+  async addParticipants(
+    userId: string,
+    conversationId: string,
+    participantIds: string[],
+  ) {
+    await assertGroupOwner(conversationId, userId);
+    const existing = new Set(await participantIdsOf(conversationId));
+    const added = Array.from(new Set(participantIds)).filter(
+      (id) => !existing.has(id),
+    );
+    if (added.length === 0) {
+      throw new BadRequestError("All selected users are already members");
+    }
+    await assertActiveUsers(added);
+
+    await prisma.conversationParticipant.createMany({
+      data: added.map((id) => ({ conversationId, userId: id })),
+      skipDuplicates: true,
+    });
+
+    emitToUsers(added, "conversation:new", { conversationId });
+    emitToUsers(Array.from(existing), "conversation:updated", { conversationId });
+    return this.getConversation(userId, conversationId);
+  },
+
+  async removeParticipant(
+    userId: string,
+    conversationId: string,
+    targetUserId: string,
+  ) {
+    await assertGroupOwner(conversationId, userId);
+    if (targetUserId === userId) {
+      throw new BadRequestError("Use leave to remove yourself from the group");
+    }
+    const target = await prisma.conversationParticipant.findUnique({
+      where: { conversationId_userId: { conversationId, userId: targetUserId } },
+    });
+    if (!target) throw new NotFoundError("User is not a member of this group");
+
+    await prisma.conversationParticipant.delete({ where: { id: target.id } });
+
+    emitToUsers([targetUserId], "conversation:removed", { conversationId });
+    emitToUsers(await participantIdsOf(conversationId), "conversation:updated", {
+      conversationId,
+    });
+    return this.getConversation(userId, conversationId);
+  },
+
+  /**
+   * People the caller can start a conversation with: accepted contacts for
+   * members and suppliers, every active user for admins.
+   */
+  async listRecipients(
+    user: { id: string; role: Role },
+    query: RecipientsQuery,
+  ) {
+    const toRecipient = (row: Prisma.UserGetPayload<{ include: { profile: true } }>) => ({
+      id: row.id,
+      name: displayNameOf(row),
+      initials: initialsOf(row),
+      avatar: row.profile?.avatarUrl ?? null,
+      subtitle: subtitleOf(row),
+      role: row.role,
+    });
+
+    const included =
+      query.include && query.include !== user.id
+        ? await prisma.user.findFirst({
+            where: { id: query.include, status: UserStatus.ACTIVE },
+            include: { profile: true },
+          })
+        : null;
+
+    let scope: Prisma.UserWhereInput = {};
+    if (user.role !== Role.ADMIN) {
+      const connections = await prisma.connection.findMany({
+        where: {
+          status: ConnectionStatus.ACCEPTED,
+          OR: [{ requesterId: user.id }, { addresseeId: user.id }],
+        },
+        select: { requesterId: true, addresseeId: true },
+      });
+      const contactIds = connections.map((c) =>
+        c.requesterId === user.id ? c.addresseeId : c.requesterId,
+      );
+      if (contactIds.length === 0) {
+        return { data: included ? [toRecipient(included)] : [] };
+      }
+      scope = { id: { in: contactIds } };
+    }
+
+    const users = await prisma.user.findMany({
+      where: {
+        AND: [
+          scope,
+          { id: { not: user.id }, status: UserStatus.ACTIVE },
+          userSearchWhere(query.search),
+        ],
+      },
+      include: { profile: true },
+      orderBy: [{ profile: { firstName: "asc" } }, { email: "asc" }],
+      take: query.pageSize,
+    });
+
+    const rows =
+      included && !users.some((row) => row.id === included.id)
+        ? [included, ...users]
+        : users;
+    return { data: rows.map(toRecipient) };
   },
 };
