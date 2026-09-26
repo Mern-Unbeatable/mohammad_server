@@ -6,8 +6,10 @@ import {
   ConflictError,
   ForbiddenError,
   UnauthenticatedError,
+  ValidationError,
 } from "@/shared/errors/AppError";
 import { sendMail } from "@/infrastructure/mailer";
+import { buildPasswordResetEmail } from "./auth.emails";
 import { logger } from "@/config/logger";
 import { hashPassword, verifyPassword } from "@/shared/utils/password";
 import {
@@ -81,26 +83,21 @@ const issueTokens = async (user: { id: string; role: Role; email: string }) => {
 const INVALID_RESET_TOKEN_MESSAGE =
   "This password reset link is invalid or has expired";
 
-const sendPasswordResetEmail = async (email: string, token: string) => {
-  const resetUrl = `${env.clientUrl.replace(/\/$/, "")}/reset-password?token=${token}`;
-  const minutes = env.passwordResetTtlMinutes;
-
-  await sendMail({
-    to: email,
-    subject: "Reset your Lab Unity password",
-    text: [
-      "We received a request to reset your Lab Unity password.",
-      `Open this link to choose a new password (valid for ${minutes} minutes):`,
-      resetUrl,
-      "",
-      "If you didn't request this, you can safely ignore this email.",
-    ].join("\n"),
-    html: `
-      <p>We received a request to reset your Lab Unity password.</p>
-      <p><a href="${resetUrl}">Choose a new password</a> — this link is valid for ${minutes} minutes.</p>
-      <p>If you didn't request this, you can safely ignore this email.</p>
-    `,
+/** Returns the stored token if it can still be used, otherwise null. */
+const findUsableResetToken = async (token: string) => {
+  const stored = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash: hashToken(token) },
+    include: { user: { select: { status: true, passwordHash: true } } },
   });
+  if (
+    !stored ||
+    stored.usedAt ||
+    stored.expiresAt <= new Date() ||
+    stored.user.status === "BANNED"
+  ) {
+    return null;
+  }
+  return stored;
 };
 
 export const authService = {
@@ -218,28 +215,54 @@ export const authService = {
   },
 
   /**
-   * Always resolves without revealing whether the email is registered.
-   * Issuing a new link invalidates any previously issued, unused ones.
+   * Resolves immediately without revealing whether the email is registered.
+   * The lookup and email run after the response so response time is the
+   * same for known and unknown addresses.
    */
   async forgotPassword(input: ForgotPasswordInput) {
+    authService.processPasswordResetRequest(input.email).catch((error) => {
+      logger.error({ err: error }, "Password reset request failed");
+    });
+  },
+
+  /**
+   * Issues a single-use reset token (only its SHA-256 hash is stored) and
+   * emails the link. Any older tokens for the account are discarded.
+   */
+  async processPasswordResetRequest(email: string) {
     const user = await prisma.user.findUnique({
-      where: { email: input.email },
-      select: { id: true, email: true, status: true },
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        status: true,
+        profile: { select: { firstName: true } },
+      },
     });
     if (!user || user.status === "BANNED") return;
 
-    const token = crypto.randomBytes(32).toString("hex");
     const now = new Date();
+    const recent = await prisma.passwordResetToken.findFirst({
+      where: {
+        userId: user.id,
+        usedAt: null,
+        createdAt: {
+          gt: new Date(now.getTime() - env.passwordResetCooldownSeconds * 1000),
+        },
+      },
+      select: { id: true },
+    });
+    if (recent) return;
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const tokenHash = hashToken(token);
 
     await prisma.$transaction([
-      prisma.passwordResetToken.updateMany({
-        where: { userId: user.id, usedAt: null },
-        data: { usedAt: now },
-      }),
+      prisma.passwordResetToken.deleteMany({ where: { userId: user.id } }),
       prisma.passwordResetToken.create({
         data: {
           userId: user.id,
-          tokenHash: hashToken(token),
+          tokenHash,
           expiresAt: new Date(
             now.getTime() + env.passwordResetTtlMinutes * 60 * 1000,
           ),
@@ -248,40 +271,71 @@ export const authService = {
     ]);
 
     try {
-      await sendPasswordResetEmail(user.email, token);
+      await sendMail(
+        buildPasswordResetEmail({
+          to: user.email,
+          resetUrl: `${env.frontendUrl}/reset-password?token=${token}`,
+          ttlMinutes: env.passwordResetTtlMinutes,
+          firstName: user.profile?.firstName,
+        }),
+      );
     } catch (error) {
+      // Drop the undelivered token so the cooldown doesn't block a retry.
+      await prisma.passwordResetToken.deleteMany({ where: { tokenHash } });
+      const { code, responseCode } = (error ?? {}) as {
+        code?: string;
+        responseCode?: number;
+      };
       logger.error(
-        { err: error, userId: user.id },
+        { userId: user.id, code, responseCode },
         "Failed to send password reset email",
       );
     }
   },
 
+  /** Lets the reset page show an expired/invalid state before the form is filled. */
+  async verifyResetToken(token: string) {
+    const stored = await findUsableResetToken(token);
+    if (!stored) throw new BadRequestError(INVALID_RESET_TOKEN_MESSAGE);
+    return { valid: true, expiresAt: stored.expiresAt };
+  },
+
   async resetPassword(input: ResetPasswordInput) {
-    const stored = await prisma.passwordResetToken.findUnique({
-      where: { tokenHash: hashToken(input.token) },
-    });
-    if (!stored || stored.usedAt || stored.expiresAt < new Date()) {
-      throw new BadRequestError(INVALID_RESET_TOKEN_MESSAGE);
+    const stored = await findUsableResetToken(input.token);
+    if (!stored) throw new BadRequestError(INVALID_RESET_TOKEN_MESSAGE);
+
+    if (await verifyPassword(input.password, stored.user.passwordHash)) {
+      throw new ValidationError(
+        "New password must be different from your current password",
+      );
     }
 
     const passwordHash = await hashPassword(input.password);
-    const now = new Date();
 
-    await prisma.$transaction([
-      prisma.user.update({
+    await prisma.$transaction(async (tx) => {
+      const now = new Date();
+      // Claiming the row inside the transaction makes the token single-use
+      // even when two requests race with the same link.
+      const claimed = await tx.passwordResetToken.updateMany({
+        where: { id: stored.id, usedAt: null, expiresAt: { gt: now } },
+        data: { usedAt: now },
+      });
+      if (claimed.count !== 1) {
+        throw new BadRequestError(INVALID_RESET_TOKEN_MESSAGE);
+      }
+
+      await tx.user.update({
         where: { id: stored.userId },
         data: { passwordHash },
-      }),
-      prisma.passwordResetToken.updateMany({
-        where: { userId: stored.userId, usedAt: null },
-        data: { usedAt: now },
-      }),
-      prisma.refreshToken.updateMany({
+      });
+      await tx.passwordResetToken.deleteMany({
+        where: { userId: stored.userId, id: { not: stored.id } },
+      });
+      await tx.refreshToken.updateMany({
         where: { userId: stored.userId, revokedAt: null },
         data: { revokedAt: now },
-      }),
-    ]);
+      });
+    });
   },
 
   async me(userId: string) {

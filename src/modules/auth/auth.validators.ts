@@ -58,9 +58,15 @@ export const forgotPasswordSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
 });
 
+const resetTokenSchema = z.string().trim().min(32, "Invalid reset token").max(256);
+
+export const verifyResetTokenSchema = z.object({
+  token: resetTokenSchema,
+});
+
 export const resetPasswordSchema = z
   .object({
-    token: z.string().trim().min(32, "Invalid reset token").max(256),
+    token: resetTokenSchema,
     password: passwordSchema,
     confirmPassword: z.string(),
   })
@@ -74,3 +80,4 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export type RefreshInput = z.infer<typeof refreshSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type VerifyResetTokenInput = z.infer<typeof verifyResetTokenSchema>;

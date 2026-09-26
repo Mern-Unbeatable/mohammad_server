@@ -2,6 +2,7 @@ import { createApp } from "@/app";
 import { env } from "@/config/env";
 import { logger } from "@/config/logger";
 import { connectDatabase, disconnectDatabase } from "@/infrastructure/prisma";
+import { verifyMailer } from "@/infrastructure/mailer";
 import { closeRealtime, initRealtime } from "@/realtime/socket";
 
 const bootstrap = async (): Promise<void> => {
@@ -13,6 +14,7 @@ const bootstrap = async (): Promise<void> => {
     logger.info(`API base: ${env.apiPrefix}`);
   });
   initRealtime(server);
+  void verifyMailer();
 
   const shutdown = async (signal: string): Promise<void> => {
     logger.info(`${signal} received, shutting down gracefully`);

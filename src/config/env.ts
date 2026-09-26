@@ -26,8 +26,18 @@ const toNumber = (value: string, key: string): number => {
   return parsed;
 };
 
+/** Like `optional`, but tries several keys in order (new name first, legacy names after). */
+const optionalAny = (keys: string[], fallback: string): string => {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (value && value.trim() !== "") return value;
+  }
+  return fallback;
+};
+
 const nodeEnv = optional("NODE_ENV", "development");
 const clientUrl = optional("CLIENT_URL", "http://localhost:5173");
+const smtpPort = toNumber(optional("SMTP_PORT", "587"), "SMTP_PORT");
 
 export const env = {
   nodeEnv,
@@ -41,6 +51,11 @@ export const env = {
     .filter(Boolean),
   databaseUrl: required("DATABASE_URL"),
   clientUrl,
+  /** Public web app origin used in emailed links (e.g. password reset). */
+  frontendUrl: optionalAny(["FRONTEND_URL", "CLIENT_URL"], clientUrl).replace(
+    /\/+$/,
+    "",
+  ),
   jwt: {
     accessSecret: required("JWT_ACCESS_SECRET"),
     refreshSecret: required("JWT_REFRESH_SECRET"),
@@ -55,13 +70,19 @@ export const env = {
     optional("PASSWORD_RESET_TTL_MINUTES", "30"),
     "PASSWORD_RESET_TTL_MINUTES",
   ),
+  /** Minimum gap between reset emails for the same account. */
+  passwordResetCooldownSeconds: toNumber(
+    optional("PASSWORD_RESET_COOLDOWN_SECONDS", "60"),
+    "PASSWORD_RESET_COOLDOWN_SECONDS",
+  ),
   smtp: {
     host: optional("SMTP_HOST", ""),
-    port: toNumber(optional("SMTP_PORT", "587"), "SMTP_PORT"),
-    secure: optional("SMTP_SECURE", "false") === "true",
+    port: smtpPort,
+    /** Implicit TLS; defaults to true only for port 465 (587/25 use STARTTLS). */
+    secure: optional("SMTP_SECURE", smtpPort === 465 ? "true" : "false") === "true",
     user: optional("SMTP_USER", ""),
-    pass: optional("SMTP_PASS", ""),
-    from: optional("MAIL_FROM", "Lab Unity <no-reply@labunity.com>"),
+    pass: optionalAny(["SMTP_PASSWORD", "SMTP_PASS"], ""),
+    from: optionalAny(["SMTP_FROM", "MAIL_FROM"], "Lab Unity <no-reply@labunity.com>"),
   },
   upload: {
     dir: optional("UPLOAD_DIR", "uploads"),
