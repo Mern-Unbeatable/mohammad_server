@@ -130,13 +130,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/auth/register",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "register"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
             },
             "description": "Create a new account.\n\n**Auth:** none (rate-limited)\n**Body:** firstName, lastName, email, password, confirmPassword, profileType, acceptedTerms (+ optional profile fields)\n**Status:** 201",
             "body": {
@@ -165,13 +160,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
             },
             "description": "Exchange credentials for tokens. Test script saves `accessToken` / `refreshToken` and mirrors into `adminToken` | `sellerToken` | `customerToken` based on role.\n\n**Auth:** none (rate-limited)\n**Status:** 200",
             "body": {
@@ -220,13 +210,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/auth/refresh",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "refresh"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh"]
             },
             "description": "Rotate access + refresh tokens.\n\n**Auth:** none\n**Body:** `{ refreshToken }`\n**Status:** 200",
             "body": {
@@ -255,13 +240,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/auth/logout",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "logout"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
             },
             "description": "Revoke refresh token.\n\n**Auth:** none\n**Body:** `{ refreshToken }`\n**Status:** 200",
             "body": {
@@ -290,13 +270,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/auth/forgot-password",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "forgot-password"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "forgot-password"]
             },
             "description": "Email a single-use password reset link (`{CLIENT_URL}/reset-password?token=...`). Always returns the same message whether or not the email is registered. Issuing a new link invalidates older unused ones. Without SMTP configured (dev), the email is logged to the server console.\n\n**Auth:** none (rate limited)\n**Body:** `{ email }`\n**Status:** 200",
             "body": {
@@ -325,13 +300,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/auth/reset-password",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "reset-password"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "reset-password"]
             },
             "description": "Set a new password using the token from the reset email. The token is single-use and expires after `PASSWORD_RESET_TTL_MINUTES` (default 30). All existing sessions (refresh tokens) are revoked.\n\n**Auth:** none (rate limited)\n**Body:** `{ token, password, confirmPassword }` — password: 8+ chars, uppercase, number, symbol\n**Status:** 200 · 400 invalid/expired token · 422 validation",
             "body": {
@@ -355,13 +325,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/auth/me",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "me"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
             },
             "description": "JWT session summary (id, role, email). Distinct from `GET /users/me` (full profile).\n\n**Auth:** Bearer any role\n**Status:** 200"
           }
@@ -379,12 +344,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/health",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "health"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
             },
             "description": "**Auth:** none\n**Status:** 200",
             "auth": {
@@ -399,12 +360,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/blogs?page=1&pageSize=10&category=diagnostics",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "blogs"
-              ],
+              "host": ["{{baseUrl}}"],
+              "path": ["blogs"],
               "query": [
                 {
                   "key": "page",
@@ -433,13 +390,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/blogs/{{blogSlug}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "blogs",
-                "{{blogSlug}}"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["blogs", "{{blogSlug}}"]
             },
             "description": "**Auth:** none\n**Params:** slug\n**Status:** 200 | 404",
             "auth": {
@@ -454,13 +406,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/subscriptions/plans",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "subscriptions",
-                "plans"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["subscriptions", "plans"]
             },
             "description": "**Auth:** none\n**Status:** 200",
             "auth": {
@@ -505,13 +452,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/admin/dashboard",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "dashboard"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "dashboard"]
                 },
                 "description": "Headline KPIs (active users, subscribers, revenue, jobs, listings).\n\n**Auth:** ADMIN\n**Status:** 200\n**Response:** `{ data: { stats: [{ id, label, value, currency? }] } }`"
               }
@@ -539,13 +481,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/admin/statistics?year=2026",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "statistics"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "statistics"],
                   "query": [
                     {
                       "key": "year",
@@ -579,13 +516,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/admin/settings",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "settings"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "settings"]
                 },
                 "description": "**Auth:** ADMIN\n**Status:** 200"
               }
@@ -597,14 +529,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/admin/settings/{{settingKey}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "settings",
-                    "{{settingKey}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "settings", "{{settingKey}}"]
                 },
                 "description": "**Auth:** ADMIN\n**Params:** key\n**Status:** 200 | 404\n\nVariable `settingKey` example: `maintenance_mode`"
               }
@@ -621,14 +547,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/admin/settings/{{settingKey}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "settings",
-                    "{{settingKey}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "settings", "{{settingKey}}"]
                 },
                 "description": "**Auth:** ADMIN\n**Body:** `{ value: <any JSON> }`\n**Status:** 200",
                 "body": {
@@ -665,12 +585,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/users?page=1&pageSize=20&role=user&status=active",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "users"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users"],
                   "query": [
                     {
                       "key": "page",
@@ -700,13 +616,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/users/{{userId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "users",
-                    "{{userId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "{{userId}}"]
                 },
                 "description": "**Auth:** ADMIN\n**Params:** id (uuid)\n**Status:** 200 | 404"
               }
@@ -723,14 +634,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/users/{{userId}}/status",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "users",
-                    "{{userId}}",
-                    "status"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "{{userId}}", "status"]
                 },
                 "description": "**Auth:** ADMIN\n**Body:** `{ status: ACTIVE|SUSPENDED|BANNED, reason? }`\n**Status:** 200",
                 "body": {
@@ -767,13 +672,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/users/me",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "users",
-                    "me"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "me"]
                 },
                 "description": "**Auth:** any (use adminToken)\n**Status:** 200"
               }
@@ -790,13 +690,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/users/me",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "users",
-                    "me"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "me"]
                 },
                 "description": "**Auth:** any\n**Body:** optional firstName, lastName, title, company, country, location, phone, about, aboutExtended, avatarUrl, coverUrl\n**Status:** 200",
                 "body": {
@@ -822,14 +717,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/users/me/password",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "users",
-                    "me",
-                    "password"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "me", "password"]
                 },
                 "description": "**Auth:** any\n**Body:** currentPassword, newPassword, confirmPassword\n**Status:** 200",
                 "body": {
@@ -866,12 +755,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/blogs?page=1&pageSize=10",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "blogs"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["blogs"],
                   "query": [
                     {
                       "key": "page",
@@ -893,13 +778,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/blogs/{{blogSlug}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "blogs",
-                    "{{blogSlug}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["blogs", "{{blogSlug}}"]
                 },
                 "description": "**Auth:** none\n**Status:** 200 | 404"
               }
@@ -916,12 +796,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/blogs",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "blogs"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["blogs"]
                 },
                 "description": "**Auth:** ADMIN\n**Body:** title, category, excerpt, body, image?, readTime?, slug?, publish?\n**Status:** 201",
                 "body": {
@@ -947,13 +823,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/blogs/{{blogId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "blogs",
-                    "{{blogId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["blogs", "{{blogId}}"]
                 },
                 "description": "**Auth:** ADMIN\n**Params:** id (uuid)\n**Status:** 200",
                 "body": {
@@ -974,13 +845,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/blogs/{{blogId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "blogs",
-                    "{{blogId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["blogs", "{{blogId}}"]
                 },
                 "description": "**Auth:** ADMIN\n**Status:** 200"
               }
@@ -1008,12 +874,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/reports?page=1&pageSize=20&status=pending",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "reports"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reports"],
                   "query": [
                     {
                       "key": "page",
@@ -1039,13 +901,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/reports/stats",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "reports",
-                    "stats"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reports", "stats"]
                 },
                 "description": "**Auth:** ADMIN\n**Status:** 200"
               }
@@ -1057,13 +914,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/reports/{{reportId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "reports",
-                    "{{reportId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reports", "{{reportId}}"]
                 },
                 "description": "**Auth:** ADMIN\n**Status:** 200 | 404"
               }
@@ -1080,14 +932,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/reports/{{reportId}}/status",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "reports",
-                    "{{reportId}}",
-                    "status"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reports", "{{reportId}}", "status"]
                 },
                 "description": "**Auth:** ADMIN\n**Body:** `{ status: PENDING|UNDER_REVIEW|RESOLVED }`\n**Status:** 200",
                 "body": {
@@ -1113,14 +959,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/reports/{{reportId}}/moderate",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "reports",
-                    "{{reportId}}",
-                    "moderate"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reports", "{{reportId}}", "moderate"]
                 },
                 "description": "**Auth:** ADMIN\n**Body:** `{ action: WARN|SUSPEND|BAN|REMOVE_CONTENT|DISMISS, note? }`\n**Status:** 200",
                 "body": {
@@ -1157,12 +997,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/advertisements?page=1&pageSize=20",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "advertisements"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements"],
                   "query": [
                     {
                       "key": "page",
@@ -1209,13 +1045,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/advertisements/{{adId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "advertisements",
-                    "{{adId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements", "{{adId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200 | 404"
               }
@@ -1232,14 +1063,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/advertisements/{{adId}}/review",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "advertisements",
-                    "{{adId}}",
-                    "review"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements", "{{adId}}", "review"]
                 },
                 "description": "**Auth:** ADMIN\n**Body:** `{ status: ACTIVE|REJECTED|EXPIRED, rejectionReason? }`\n**Status:** 200",
                 "body": {
@@ -1276,12 +1101,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/marketplace?page=1&pageSize=12",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "marketplace"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace"],
                   "query": [
                     {
                       "key": "page",
@@ -1303,13 +1124,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/marketplace/{{listingId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "marketplace",
-                    "{{listingId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace", "{{listingId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200 | 404"
               }
@@ -1321,13 +1137,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/marketplace/{{listingId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "marketplace",
-                    "{{listingId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace", "{{listingId}}"]
                 },
                 "description": "**Auth:** authenticated (ownership/admin enforced in service)\n**Status:** 200"
               }
@@ -1355,12 +1166,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/recruitment?page=1&pageSize=10",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recruitment"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment"],
                   "query": [
                     {
                       "key": "page",
@@ -1382,13 +1189,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/recruitment/{{jobId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recruitment",
-                    "{{jobId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment", "{{jobId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200 | 404"
               }
@@ -1400,14 +1202,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/recruitment/{{jobId}}/applications",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recruitment",
-                    "{{jobId}}",
-                    "applications"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment", "{{jobId}}", "applications"]
                 },
                 "description": "**Auth:** authenticated (owner/admin in service)\n**Status:** 200"
               }
@@ -1419,13 +1215,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/recruitment/{{jobId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recruitment",
-                    "{{jobId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment", "{{jobId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -1453,12 +1244,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/general?page=1&pageSize=10",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "general"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["general"],
                   "query": [
                     {
                       "key": "page",
@@ -1500,13 +1287,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/general/{{generalPostId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "general",
-                    "{{generalPostId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["general", "{{generalPostId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200 | 404"
               }
@@ -1518,13 +1300,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/general/{{generalPostId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "general",
-                    "{{generalPostId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["general", "{{generalPostId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -1568,12 +1345,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/advertisements?mine=true&page=1&pageSize=10",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "advertisements"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements"],
                   "query": [
                     {
                       "key": "mine",
@@ -1599,12 +1372,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/notifications?page=1&pageSize=20",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "notifications"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["notifications"],
                   "query": [
                     {
                       "key": "page",
@@ -1642,12 +1411,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/advertisements?mine=true&page=1&pageSize=10",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "advertisements"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements"],
                   "query": [
                     {
                       "key": "mine",
@@ -1678,12 +1443,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/advertisements",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "advertisements"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements"]
                 },
                 "description": "**Auth:** SUPPLIER\n**Body:** title, category (PRODUCT|SERVICE|PROMO|WEBINAR), description, durationDays (7|14|30), optional media/price/contact/location/event fields\n**Status:** 201",
                 "body": {
@@ -1704,13 +1465,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/advertisements/{{adId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "advertisements",
-                    "{{adId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements", "{{adId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200 | 404"
               }
@@ -1727,13 +1483,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/advertisements/{{adId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "advertisements",
-                    "{{adId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements", "{{adId}}"]
                 },
                 "description": "**Auth:** SUPPLIER\n**Status:** 200",
                 "body": {
@@ -1754,13 +1505,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/advertisements/{{adId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "advertisements",
-                    "{{adId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements", "{{adId}}"]
                 },
                 "description": "**Auth:** authenticated (ownership in service)\n**Status:** 200"
               }
@@ -1788,12 +1534,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/marketplace?mine=true&page=1&pageSize=10",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "marketplace"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace"],
                   "query": [
                     {
                       "key": "mine",
@@ -1849,12 +1591,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/marketplace",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "marketplace"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace"]
                 },
                 "description": "**Auth:** authenticated\n**Body:** title, description, condition, category, price, year?, location?, images?\n**Status:** 201",
                 "body": {
@@ -1875,13 +1613,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/marketplace/{{listingId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "marketplace",
-                    "{{listingId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace", "{{listingId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -1898,13 +1631,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/marketplace/{{listingId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "marketplace",
-                    "{{listingId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace", "{{listingId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200",
                 "body": {
@@ -1925,13 +1653,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/marketplace/{{listingId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "marketplace",
-                    "{{listingId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace", "{{listingId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -1959,12 +1682,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/recruitment?mine=true&page=1&pageSize=10",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recruitment"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment"],
                   "query": [
                     {
                       "key": "mine",
@@ -2020,12 +1739,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/recruitment",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recruitment"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 201",
                 "body": {
@@ -2046,13 +1761,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/recruitment/{{jobId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recruitment",
-                    "{{jobId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment", "{{jobId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -2069,13 +1779,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/recruitment/{{jobId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recruitment",
-                    "{{jobId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment", "{{jobId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200",
                 "body": {
@@ -2096,13 +1801,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/recruitment/{{jobId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recruitment",
-                    "{{jobId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment", "{{jobId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -2114,14 +1814,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/recruitment/{{jobId}}/applications",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recruitment",
-                    "{{jobId}}",
-                    "applications"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment", "{{jobId}}", "applications"]
                 },
                 "description": "**Auth:** authenticated (owner)\n**Status:** 200"
               }
@@ -2149,12 +1843,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/general?page=1&pageSize=10&mine=true",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "general"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["general"],
                   "query": [
                     {
                       "key": "page",
@@ -2200,12 +1890,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/general",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "general"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["general"]
                 },
                 "description": "**Auth:** authenticated\n**Body:** type NEWS|DOCUMENT, title, … (documentUrl required for DOCUMENT)\n**Status:** 201",
                 "body": {
@@ -2226,13 +1912,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/general/{{generalPostId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "general",
-                    "{{generalPostId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["general", "{{generalPostId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -2249,13 +1930,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/general/{{generalPostId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "general",
-                    "{{generalPostId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["general", "{{generalPostId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200",
                 "body": {
@@ -2276,13 +1952,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/general/{{generalPostId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "general",
-                    "{{generalPostId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["general", "{{generalPostId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -2310,12 +1981,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/blogs?page=1&pageSize=10",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "blogs"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["blogs"],
                   "query": [
                     {
                       "key": "page",
@@ -2337,13 +2004,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/blogs/{{blogSlug}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "blogs",
-                    "{{blogSlug}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["blogs", "{{blogSlug}}"]
                 },
                 "description": "**Auth:** none\n**Status:** 200"
               }
@@ -2371,12 +2033,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/contacts?page=1&pageSize=20&status=accepted",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "contacts"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts"],
                   "query": [
                     {
                       "key": "page",
@@ -2422,13 +2080,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/contacts/{{connectionId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "contacts",
-                    "{{connectionId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts", "{{connectionId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -2445,13 +2098,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/contacts/request",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "contacts",
-                    "request"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts", "request"]
                 },
                 "description": "**Auth:** authenticated\n**Body:** `{ addresseeId }`\n**Status:** 201",
                 "body": {
@@ -2472,14 +2120,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/contacts/{{connectionId}}/accept",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "contacts",
-                    "{{connectionId}}",
-                    "accept"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts", "{{connectionId}}", "accept"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -2491,14 +2133,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/contacts/{{connectionId}}/decline",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "contacts",
-                    "{{connectionId}}",
-                    "decline"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts", "{{connectionId}}", "decline"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -2510,13 +2146,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/contacts/{{connectionId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "contacts",
-                    "{{connectionId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts", "{{connectionId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -2544,12 +2175,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/notifications?page=1&pageSize=20",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "notifications"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["notifications"],
                   "query": [
                     {
                       "key": "page",
@@ -2581,13 +2208,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/notifications/read-all",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "notifications",
-                    "read-all"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["notifications", "read-all"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -2599,14 +2221,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/notifications/{{notificationId}}/read",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "notifications",
-                    "{{notificationId}}",
-                    "read"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["notifications", "{{notificationId}}", "read"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -2618,13 +2234,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/notifications/{{notificationId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "notifications",
-                    "{{notificationId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["notifications", "{{notificationId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -2652,12 +2263,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/messages?type=direct",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "messages"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["messages"],
                   "query": [
                     {
                       "key": "type",
@@ -2685,13 +2292,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/messages/direct",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "messages",
-                    "direct"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["messages", "direct"]
                 },
                 "description": "**Auth:** authenticated\n**Body:** `{ participantId, message }`\n**Status:** 201",
                 "body": {
@@ -2717,13 +2319,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/messages/group",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "messages",
-                    "group"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["messages", "group"]
                 },
                 "description": "**Auth:** authenticated\n**Body:** `{ name, participantIds[] }`\n**Status:** 201",
                 "body": {
@@ -2744,14 +2341,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/messages/{{conversationId}}/messages?page=1&pageSize=30",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "messages",
-                    "{{conversationId}}",
-                    "messages"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["messages", "{{conversationId}}", "messages"],
                   "query": [
                     {
                       "key": "page",
@@ -2783,14 +2374,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/messages/{{conversationId}}/messages",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "messages",
-                    "{{conversationId}}",
-                    "messages"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["messages", "{{conversationId}}", "messages"]
                 },
                 "description": "**Auth:** authenticated\n**Body:** `{ body }`\n**Status:** 201",
                 "body": {
@@ -2811,9 +2396,7 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/messages/{{conversationId}}/messages/{{messageId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
+                  "host": ["{{baseUrl}}"],
                   "path": [
                     "messages",
                     "{{conversationId}}",
@@ -2831,14 +2414,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/messages/{{conversationId}}/leave",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "messages",
-                    "{{conversationId}}",
-                    "leave"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["messages", "{{conversationId}}", "leave"]
                 },
                 "description": "**Auth:** authenticated (participant)\n**Status:** 200"
               }
@@ -2866,13 +2443,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/users/me",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "users",
-                    "me"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "me"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -2889,13 +2461,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/users/me",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "users",
-                    "me"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "me"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200",
                 "body": {
@@ -2921,14 +2488,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/users/me/password",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "users",
-                    "me",
-                    "password"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "me", "password"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200",
                 "body": {
@@ -2965,12 +2526,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/uploads",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "uploads"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["uploads"]
                 },
                 "description": "**Auth:** authenticated\n**Body:** multipart `file`\n**Status:** 201",
                 "body": {
@@ -2993,13 +2550,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/uploads/multiple",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "uploads",
-                    "multiple"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["uploads", "multiple"]
                 },
                 "description": "**Auth:** authenticated\n**Body:** multipart `files`\n**Status:** 201",
                 "body": {
@@ -3054,13 +2606,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/users/me",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "users",
-                    "me"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "me"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -3072,13 +2619,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/users/{{userId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "users",
-                    "{{userId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "{{userId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Path:** userId (UUID)\nPublic ACTIVE profile; ADMIN gets full payload\n**Status:** 200"
               }
@@ -3095,13 +2637,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/users/me",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "users",
-                    "me"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "me"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200",
                 "body": {
@@ -3127,14 +2664,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/users/me/password",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "users",
-                    "me",
-                    "password"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "me", "password"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200",
                 "body": {
@@ -3171,12 +2702,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/feed?page=1&pageSize=10",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "feed"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["feed"],
                   "query": [
                     {
                       "key": "page",
@@ -3223,12 +2750,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/feed",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "feed"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["feed"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 201",
                 "body": {
@@ -3249,13 +2772,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/feed/{{postId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "feed",
-                    "{{postId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["feed", "{{postId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -3272,13 +2790,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/feed/{{postId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "feed",
-                    "{{postId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["feed", "{{postId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Body:** content?, imageUrl? (url|null), documentUrl? (url|null)\n**Status:** 200",
                 "body": {
@@ -3299,13 +2812,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/feed/{{postId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "feed",
-                    "{{postId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["feed", "{{postId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -3322,14 +2830,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/feed/{{postId}}/comments",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "feed",
-                    "{{postId}}",
-                    "comments"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["feed", "{{postId}}", "comments"]
                 },
                 "description": "**Auth:** authenticated\n**Body:** `{ content, parentCommentId? }`\n**Status:** 201",
                 "body": {
@@ -3350,15 +2852,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/feed/{{postId}}/comments/{{commentId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "feed",
-                    "{{postId}}",
-                    "comments",
-                    "{{commentId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["feed", "{{postId}}", "comments", "{{commentId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -3370,9 +2865,7 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/feed/{{postId}}/comments/{{commentId}}/like",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
+                  "host": ["{{baseUrl}}"],
                   "path": [
                     "feed",
                     "{{postId}}",
@@ -3396,14 +2889,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/feed/{{postId}}/reactions",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "feed",
-                    "{{postId}}",
-                    "reactions"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["feed", "{{postId}}", "reactions"]
                 },
                 "description": "**Auth:** authenticated\n**Body:** `{ type: like|love|haha|wow|sad|angry }` (legacy uppercase / CELEBRATE|SUPPORT|INSIGHTFUL|CURIOUS also accepted)\n**Status:** 200",
                 "body": {
@@ -3440,12 +2927,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/contacts?page=1&pageSize=20&status=accepted",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "contacts"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts"],
                   "query": [
                     {
                       "key": "page",
@@ -3491,13 +2974,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/contacts/{{connectionId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "contacts",
-                    "{{connectionId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts", "{{connectionId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -3514,13 +2992,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/contacts/request",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "contacts",
-                    "request"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts", "request"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 201",
                 "body": {
@@ -3541,14 +3014,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/contacts/{{connectionId}}/accept",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "contacts",
-                    "{{connectionId}}",
-                    "accept"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts", "{{connectionId}}", "accept"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -3560,14 +3027,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/contacts/{{connectionId}}/decline",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "contacts",
-                    "{{connectionId}}",
-                    "decline"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts", "{{connectionId}}", "decline"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -3579,13 +3040,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/contacts/{{connectionId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "contacts",
-                    "{{connectionId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["contacts", "{{connectionId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -3613,12 +3069,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/marketplace?page=1&pageSize=12",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "marketplace"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace"],
                   "query": [
                     {
                       "key": "page",
@@ -3685,12 +3137,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/marketplace",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "marketplace"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace"]
                 },
                 "description": "**Auth:** authenticated\n**Body:** title, description, condition, category, price, year?, location?, images?\n**Status:** 201",
                 "body": {
@@ -3711,13 +3159,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/marketplace/{{listingId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "marketplace",
-                    "{{listingId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace", "{{listingId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -3734,13 +3177,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/marketplace/{{listingId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "marketplace",
-                    "{{listingId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace", "{{listingId}}"]
                 },
                 "description": "**Auth:** authenticated (owner)\n**Body:** partial create fields + status? (ACTIVE|SOLD|REMOVED)\n**Status:** 200",
                 "body": {
@@ -3761,13 +3199,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/marketplace/{{listingId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "marketplace",
-                    "{{listingId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace", "{{listingId}}"]
                 },
                 "description": "**Auth:** authenticated (owner/admin)\n**Status:** 200"
               }
@@ -3779,14 +3212,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/marketplace/{{listingId}}/save",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "marketplace",
-                    "{{listingId}}",
-                    "save"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace", "{{listingId}}", "save"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -3803,14 +3230,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/marketplace/{{listingId}}/enquire",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "marketplace",
-                    "{{listingId}}",
-                    "enquire"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["marketplace", "{{listingId}}", "enquire"]
                 },
                 "description": "**Auth:** authenticated\n**Body:** `{ message }`\n**Status:** 201",
                 "body": {
@@ -3847,12 +3268,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/recruitment?page=1&pageSize=10",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recruitment"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment"],
                   "query": [
                     {
                       "key": "page",
@@ -3909,12 +3326,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/recruitment",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recruitment"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 201",
                 "body": {
@@ -3935,13 +3348,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/recruitment/{{jobId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recruitment",
-                    "{{jobId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment", "{{jobId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -3958,13 +3366,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/recruitment/{{jobId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recruitment",
-                    "{{jobId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment", "{{jobId}}"]
                 },
                 "description": "**Auth:** authenticated (owner)\n**Body:** partial create fields + status? (OPEN|CLOSED|REMOVED)\n**Status:** 200",
                 "body": {
@@ -3985,13 +3388,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/recruitment/{{jobId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recruitment",
-                    "{{jobId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment", "{{jobId}}"]
                 },
                 "description": "**Auth:** authenticated (owner/admin)\n**Status:** 200"
               }
@@ -4008,14 +3406,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/recruitment/{{jobId}}/apply",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recruitment",
-                    "{{jobId}}",
-                    "apply"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment", "{{jobId}}", "apply"]
                 },
                 "description": "**Auth:** authenticated\n**Body:** `{ coverLetter? }`\n**Status:** 201",
                 "body": {
@@ -4036,14 +3428,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/recruitment/{{jobId}}/applications?page=1&pageSize=20",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recruitment",
-                    "{{jobId}}",
-                    "applications"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment", "{{jobId}}", "applications"],
                   "query": [
                     {
                       "key": "page",
@@ -4065,14 +3451,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/recruitment/applications/me?page=1&pageSize=20",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recruitment",
-                    "applications",
-                    "me"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["recruitment", "applications", "me"],
                   "query": [
                     {
                       "key": "page",
@@ -4115,12 +3495,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/general?page=1&pageSize=10",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "general"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["general"],
                   "query": [
                     {
                       "key": "page",
@@ -4167,12 +3543,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/general",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "general"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["general"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 201",
                 "body": {
@@ -4193,13 +3565,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/general/{{generalPostId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "general",
-                    "{{generalPostId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["general", "{{generalPostId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -4216,13 +3583,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/general/{{generalPostId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "general",
-                    "{{generalPostId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["general", "{{generalPostId}}"]
                 },
                 "description": "**Auth:** authenticated (owner)\n**Body:** title?, summary?, category?, source?, imageUrl? (url|null), documentUrl? (url|null), body?\n**Status:** 200",
                 "body": {
@@ -4243,13 +3605,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/general/{{generalPostId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "general",
-                    "{{generalPostId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["general", "{{generalPostId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -4277,12 +3634,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/messages?type=direct",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "messages"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["messages"],
                   "query": [
                     {
                       "key": "type",
@@ -4310,13 +3663,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/messages/direct",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "messages",
-                    "direct"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["messages", "direct"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 201",
                 "body": {
@@ -4342,13 +3690,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/messages/group",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "messages",
-                    "group"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["messages", "group"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 201",
                 "body": {
@@ -4369,14 +3712,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/messages/{{conversationId}}/messages?page=1&pageSize=30",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "messages",
-                    "{{conversationId}}",
-                    "messages"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["messages", "{{conversationId}}", "messages"],
                   "query": [
                     {
                       "key": "page",
@@ -4408,14 +3745,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/messages/{{conversationId}}/messages",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "messages",
-                    "{{conversationId}}",
-                    "messages"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["messages", "{{conversationId}}", "messages"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 201",
                 "body": {
@@ -4436,9 +3767,7 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/messages/{{conversationId}}/messages/{{messageId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
+                  "host": ["{{baseUrl}}"],
                   "path": [
                     "messages",
                     "{{conversationId}}",
@@ -4456,14 +3785,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/messages/{{conversationId}}/leave",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "messages",
-                    "{{conversationId}}",
-                    "leave"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["messages", "{{conversationId}}", "leave"]
                 },
                 "description": "**Auth:** authenticated (participant)\n**Status:** 200"
               }
@@ -4491,12 +3814,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/notifications?page=1&pageSize=20",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "notifications"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["notifications"],
                   "query": [
                     {
                       "key": "page",
@@ -4528,13 +3847,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/notifications/read-all",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "notifications",
-                    "read-all"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["notifications", "read-all"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -4546,14 +3860,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/notifications/{{notificationId}}/read",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "notifications",
-                    "{{notificationId}}",
-                    "read"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["notifications", "{{notificationId}}", "read"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -4565,13 +3873,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/notifications/{{notificationId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "notifications",
-                    "{{notificationId}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["notifications", "{{notificationId}}"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -4599,13 +3902,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/advertisements/active?page=1&pageSize=10",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "advertisements",
-                    "active"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements", "active"],
                   "query": [
                     {
                       "key": "page",
@@ -4627,15 +3925,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/advertisements/{{adId}}/track/{{metric}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "advertisements",
-                    "{{adId}}",
-                    "track",
-                    "{{metric}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["advertisements", "{{adId}}", "track", "{{metric}}"]
                 },
                 "description": "**Auth:** authenticated\n**Params:** id, metric (`clicks` or other → counted as views)\n**Status:** 200\n\nSet collection var `metric` to `clicks` or `views`."
               }
@@ -4663,13 +3954,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/subscriptions/me",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "subscriptions",
-                    "me"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["subscriptions", "me"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -4686,13 +3972,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/subscriptions/subscribe",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "subscriptions",
-                    "subscribe"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["subscriptions", "subscribe"]
                 },
                 "description": "**Auth:** authenticated\n**Body:** `{ plan: MONTHLY|YEARLY }` (returns Stripe Checkout session when configured)\n**Status:** 200",
                 "body": {
@@ -4718,13 +3999,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/subscriptions/confirm-checkout",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "subscriptions",
-                    "confirm-checkout"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["subscriptions", "confirm-checkout"]
                 },
                 "description": "**Auth:** authenticated\n**Body:** `{ sessionId }` — confirm Stripe Checkout session after redirect\n**Status:** 200",
                 "body": {
@@ -4745,13 +4021,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/subscriptions/cancel",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "subscriptions",
-                    "cancel"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["subscriptions", "cancel"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 200"
               }
@@ -4784,12 +4055,8 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/reports",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "reports"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reports"]
                 },
                 "description": "**Auth:** authenticated\n**Body:** targetType, reason, optional targetId/reportedUserId/targetSnippet/reasonDetail\n**Status:** 201",
                 "body": {
@@ -4810,13 +4077,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/reports/me?page=1&pageSize=20",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "reports",
-                    "me"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reports", "me"],
                   "query": [
                     {
                       "key": "page",
@@ -4864,12 +4126,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/search?q=HPLC",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "search"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["search"],
                   "query": [
                     {
                       "key": "q",
@@ -4903,12 +4161,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/blogs?page=1&pageSize=10",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "blogs"
-                  ],
+                  "host": ["{{baseUrl}}"],
+                  "path": ["blogs"],
                   "query": [
                     {
                       "key": "page",
@@ -4933,13 +4187,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/blogs/{{blogSlug}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "blogs",
-                    "{{blogSlug}}"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["blogs", "{{blogSlug}}"]
                 },
                 "description": "**Auth:** none\n**Status:** 200",
                 "auth": {
@@ -4970,12 +4219,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/uploads",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "uploads"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["uploads"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 201",
                 "body": {
@@ -4997,13 +4242,8 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/uploads/multiple",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "uploads",
-                    "multiple"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["uploads", "multiple"]
                 },
                 "description": "**Auth:** authenticated\n**Status:** 201",
                 "body": {
