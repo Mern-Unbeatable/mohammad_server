@@ -1,5 +1,4 @@
 import { Request, Response } from "express";
-import { Prisma } from "@prisma/client";
 import { sendSuccess } from "@/shared/http/apiResponse";
 import { asyncHandler } from "@/shared/utils/asyncHandler";
 import { settingsService } from "./settings.service";
@@ -18,7 +17,7 @@ export const settingsController = {
   upsertSetting: asyncHandler(async (req: Request, res: Response) => {
     const data = await settingsService.upsertSetting(
       req.params.key,
-      req.body.value as Prisma.InputJsonValue,
+      req.body.value,
     );
     sendSuccess(res, { data, message: "Setting saved" });
   }),

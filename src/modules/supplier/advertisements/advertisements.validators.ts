@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { paginationQuerySchema } from "@/shared/http/pagination";
+import {
+  DEFAULT_AD_DURATION_DAYS,
+  isSponsoredDuration,
+} from "@/modules/admin/settings/settings.pricing";
 
 const AD_CATEGORIES = ["PRODUCT", "SERVICE", "PROMO", "WEBINAR"] as const;
 const AD_STATUSES = ["PENDING", "ACTIVE", "EXPIRED", "REJECTED"] as const;
@@ -23,8 +27,10 @@ export const createAdSchema = z.object({
   eventTime: z.string().trim().max(20).optional(),
   organizer: z.string().trim().max(160).optional(),
   durationDays: z
-    .union([z.literal(7), z.literal(14), z.literal(30)])
-    .default(7),
+    .number()
+    .int()
+    .refine(isSponsoredDuration, "Unsupported advertisement duration")
+    .default(DEFAULT_AD_DURATION_DAYS),
 });
 
 export const updateAdSchema = createAdSchema.partial();

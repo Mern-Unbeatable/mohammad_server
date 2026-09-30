@@ -28,6 +28,12 @@ router.post(
   advertisementsController.track,
 );
 
+router.get(
+  "/pricing",
+  authorize(Role.SUPPLIER, Role.ADMIN),
+  advertisementsController.pricing,
+);
+
 // Supplier-owned + admin listing
 router.get(
   "/",

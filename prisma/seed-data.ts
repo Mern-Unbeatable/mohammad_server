@@ -1798,11 +1798,11 @@ export const ADMIN_ACTIONS: {
 ];
 
 // ---------------------------------------------------------------------------
-// App settings (keys match web/src/features/admin/settings/settingsDefaults.js)
+// App settings (pricing shape matches src/modules/admin/settings/settings.pricing.ts)
 // ---------------------------------------------------------------------------
 
 export const APP_SETTINGS: Record<string, unknown> = {
-  subscription_pricing: { monthly: "19.99", yearly: "239.88" },
+  subscription_pricing: { monthly: 19.99, yearly: 239.88 },
   sponsored_pricing: [
     { id: "7-days", label: "7 Days", price: 35 },
     { id: "14-days", label: "14 Days", price: 60 },

@@ -3,9 +3,15 @@ import { StatusCodes } from "http-status-codes";
 import { AdStatus } from "@prisma/client";
 import { sendSuccess } from "@/shared/http/apiResponse";
 import { asyncHandler } from "@/shared/utils/asyncHandler";
+import { settingsService } from "@/modules/admin/settings/settings.service";
 import { advertisementsService } from "./advertisements.service";
 
 export const advertisementsController = {
+  pricing: asyncHandler(async (_req: Request, res: Response) => {
+    const data = await settingsService.getSponsoredPricing();
+    sendSuccess(res, { data });
+  }),
+
   list: asyncHandler(async (req: Request, res: Response) => {
     const result = await advertisementsService.list(
       req.user!.id,
