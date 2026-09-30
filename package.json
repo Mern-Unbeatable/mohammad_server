@@ -19,6 +19,8 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
+    "db:reset": "tsx prisma/seed.ts --reset",
+    "db:verify": "tsx prisma/verify-seed.ts",
     "smtp:test": "tsx scripts/smtp-test.ts"
   },
   "prisma": {
