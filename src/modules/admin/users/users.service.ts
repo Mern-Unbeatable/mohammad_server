@@ -126,7 +126,7 @@ export const usersService = {
             : status === UserStatus.SUSPENDED
               ? "SUSPEND"
               : "DISMISS",
-        note: reason,
+        note: reason || null,
       },
     });
 

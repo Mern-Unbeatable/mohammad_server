@@ -169,7 +169,16 @@ export const authService = {
       throw new ForbiddenError("This account has been banned");
     }
     if (user.status === "SUSPENDED") {
-      throw new ForbiddenError("This account is currently suspended");
+      const suspension = await prisma.moderationLog.findFirst({
+        where: { targetUserId: user.id, action: "SUSPEND" },
+        orderBy: { createdAt: "desc" },
+        select: { note: true, createdAt: true },
+      });
+      throw new ForbiddenError("This account is currently suspended", {
+        accountStatus: "SUSPENDED",
+        suspensionReason: suspension?.note?.trim() || null,
+        suspendedAt: suspension?.createdAt ?? null,
+      });
     }
 
     await prisma.user.update({
