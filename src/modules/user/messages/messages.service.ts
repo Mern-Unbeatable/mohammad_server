@@ -279,6 +279,17 @@ export const messagesService = {
       where: { conversationId_userId: { conversationId, userId } },
       data: { lastReadAt },
     });
+    // Reading the chat settles its "new message" notification, so the next
+    // message notifies again (see notifyNewMessage).
+    await prisma.notification.updateMany({
+      where: {
+        userId,
+        read: false,
+        type: { in: [NotificationType.MESSAGE, NotificationType.GROUP_MESSAGE] },
+        link: { endsWith: `?conversation=${conversationId}` },
+      },
+      data: { read: true },
+    });
     // The reader is included so their other tabs/devices can refresh unread state.
     emitToUsers(await participantIdsOf(conversationId), "conversation:read", {
       conversationId,
