@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { NotificationType, Prisma } from "@prisma/client";
 import { prisma } from "@/infrastructure/prisma";
 import { emitToUsers } from "@/realtime/socket";
 import { NotFoundError } from "@/shared/errors/AppError";
@@ -8,6 +8,21 @@ import { toPrismaPagination } from "@/shared/http/pagination";
 /** Lets the owner's other tabs/devices refresh their unread badge. */
 const announceUpdated = (userId: string) =>
   emitToUsers([userId], "notification:updated", {});
+
+/**
+ * Chat has its own unread state (`/messages/unread`), so chat notifications
+ * (including ones stored before they stopped being created) stay out of the
+ * notification list and badge.
+ */
+export const CHAT_NOTIFICATION_TYPES: NotificationType[] = [
+  NotificationType.MESSAGE,
+  NotificationType.GROUP_MESSAGE,
+];
+
+export const visibleNotificationsWhere = (userId: string): Prisma.NotificationWhereInput => ({
+  userId,
+  type: { notIn: CHAT_NOTIFICATION_TYPES },
+});
 
 export const notificationsService = {
   async list(
@@ -21,7 +36,7 @@ export const notificationsService = {
   ) {
     const { skip, take } = toPrismaPagination(query.page, query.pageSize);
     const where: Prisma.NotificationWhereInput = {
-      userId,
+      ...visibleNotificationsWhere(userId),
       ...(query.unread ? { read: false } : {}),
     };
 
@@ -33,7 +48,9 @@ export const notificationsService = {
         take,
       }),
       prisma.notification.count({ where }),
-      prisma.notification.count({ where: { userId, read: false } }),
+      prisma.notification.count({
+        where: { ...visibleNotificationsWhere(userId), read: false },
+      }),
     ]);
 
     return {
