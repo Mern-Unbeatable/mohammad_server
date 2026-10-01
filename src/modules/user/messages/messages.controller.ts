@@ -26,6 +26,11 @@ export const messagesController = {
     sendSuccess(res, { data });
   }),
 
+  findDirect: asyncHandler(async (req: Request, res: Response) => {
+    const data = await messagesService.findDirect(req.user!.id, req.params.userId);
+    sendSuccess(res, { data });
+  }),
+
   getConversation: asyncHandler(async (req: Request, res: Response) => {
     const data = await messagesService.getConversation(
       req.user!.id,

@@ -46,15 +46,25 @@ export const subtitleOf = (user: UserWithProfile): string | null => {
   return parts.length ? parts.join(" · ") : null;
 };
 
-/** Frontend route that shows the inbox for a given role. */
+/** Frontend chat base route for a given role (mirrors web `CHAT_BASE_PATHS`). */
 export const messagesPathForRole = (role: Role): string => {
-  if (role === Role.SUPPLIER) return "/supplier/messages";
+  if (role === Role.SUPPLIER) return "/supplier/chat";
   if (role === Role.ADMIN) return "/admin/chat";
-  return "/messages";
+  return "/chat";
 };
 
-export const messagesLinkFor = (role: Role, conversationId: string): string =>
-  `${messagesPathForRole(role)}?conversation=${conversationId}`;
+export type ChatTarget =
+  | { isGroup: true; conversationId: string }
+  | { isGroup: false; otherUserId: string };
+
+/** Direct chats are addressed by the other user's id, groups by conversation id. */
+export const chatPathSuffix = (target: ChatTarget): string =>
+  target.isGroup
+    ? `/group/${target.conversationId}`
+    : `/messages/${target.otherUserId}`;
+
+export const messagesLinkFor = (role: Role, target: ChatTarget): string =>
+  `${messagesPathForRole(role)}${chatPathSuffix(target)}`;
 
 export const truncate = (text: string, max = 120): string =>
   text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;

@@ -254,7 +254,7 @@ const subscriptionFor = (
 const initialsOf = (p: SeedPerson): string => `${p.firstName[0] ?? ""}${p.lastName[0] ?? ""}`.toUpperCase();
 const nameOf = (p: SeedPerson): string => `${p.firstName} ${p.lastName}`;
 const messagesPathForRole = (role: Role): string =>
-  role === Role.SUPPLIER ? "/supplier/messages" : role === Role.ADMIN ? "/admin/chat" : "/messages";
+  role === Role.SUPPLIER ? "/supplier/chat" : role === Role.ADMIN ? "/admin/chat" : "/chat";
 
 // ---------------------------------------------------------------------------
 // Seed
@@ -695,7 +695,9 @@ async function seed(tx: Prisma.TransactionClient, passwordHash: string, docSizes
           latestUnread.createdAt,
           {
             subtitle: truncate(convo.group ? `${nameOf(sender)}: ${preview}` : preview),
-            link: `${messagesPathForRole(user(key).person.role)}?conversation=${id}`,
+            link: `${messagesPathForRole(user(key).person.role)}${
+              convo.group ? `/group/${id}` : `/messages/${user(latestUnread.from).id}`
+            }`,
             read: false,
           },
         );

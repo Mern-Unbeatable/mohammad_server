@@ -8,6 +8,7 @@ import {
   conversationIdParamSchema,
   conversationListQuerySchema,
   createGroupSchema,
+  directUserParamSchema,
   messageIdParamSchema,
   messageListQuerySchema,
   participantParamSchema,
@@ -33,6 +34,11 @@ router.get(
   messagesController.listRecipients,
 );
 router.get("/unread", messagesController.unreadSummary);
+router.get(
+  "/direct/:userId",
+  validate({ params: directUserParamSchema }),
+  messagesController.findDirect,
+);
 router.post(
   "/direct",
   validate({ body: startDirectSchema }),

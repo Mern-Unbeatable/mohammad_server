@@ -58,6 +58,8 @@ export const addParticipantsSchema = z.object({
 
 export const conversationIdParamSchema = z.object({ id: z.string().uuid() });
 
+export const directUserParamSchema = z.object({ userId: z.string().uuid() });
+
 export const messageIdParamSchema = z.object({
   id: z.string().uuid(),
   messageId: z.string().uuid(),

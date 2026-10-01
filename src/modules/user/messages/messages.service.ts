@@ -18,10 +18,12 @@ import { toPrismaPagination } from "@/shared/http/pagination";
 import { emitToUsers } from "@/realtime/socket";
 import {
   buildDirectKey,
+  chatPathSuffix,
   conversationInclude,
   displayNameOf,
   initialsOf,
   messagesLinkFor,
+  type ChatTarget,
   previewOf,
   serializeConversation,
   serializeMessage,
@@ -138,6 +140,7 @@ const notifyNewMessage = async (params: {
   conversationId: string;
   isGroup: boolean;
   groupName: string | null;
+  senderId: string;
   senderName: string;
   preview: string;
   recipientIds: string[];
@@ -147,9 +150,12 @@ const notifyNewMessage = async (params: {
     where: { id: { in: params.recipientIds } },
     select: { id: true, role: true },
   });
+  const target: ChatTarget = params.isGroup
+    ? { isGroup: true, conversationId: params.conversationId }
+    : { isGroup: false, otherUserId: params.senderId };
   const targets = recipients.map((recipient) => ({
     userId: recipient.id,
-    link: messagesLinkFor(recipient.role, params.conversationId),
+    link: messagesLinkFor(recipient.role, target),
   }));
 
   const pending = await prisma.notification.findMany({
@@ -242,6 +248,21 @@ export const messagesService = {
     );
   },
 
+  /** The caller's existing 1:1 conversation with `otherUserId`, or null. */
+  async findDirect(userId: string, otherUserId: string) {
+    if (userId === otherUserId) return null;
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        directKey: buildDirectKey(userId, otherUserId),
+        participants: { some: { userId } },
+      },
+      include: conversationInclude,
+    });
+    if (!conversation) return null;
+    const unread = await unreadCountsFor(userId, [conversation.id]);
+    return serializeConversation(conversation, userId, unread.get(conversation.id) ?? 0);
+  },
+
   /** Cursor-paginated thread (oldest→newest within the page). */
   async getMessages(
     userId: string,
@@ -273,25 +294,36 @@ export const messagesService = {
   },
 
   async markRead(userId: string, conversationId: string) {
-    await assertMembership(conversationId, userId);
+    const membership = await assertMembership(conversationId, userId);
     const lastReadAt = new Date();
     await prisma.conversationParticipant.update({
       where: { conversationId_userId: { conversationId, userId } },
       data: { lastReadAt },
     });
+    const participants = await participantIdsOf(conversationId);
+    const otherUserId = participants.find((id) => id !== userId);
+    const target: ChatTarget | null = membership.conversation.isGroup
+      ? { isGroup: true, conversationId }
+      : otherUserId
+        ? { isGroup: false, otherUserId }
+        : null;
     // Reading the chat settles its "new message" notification, so the next
-    // message notifies again (see notifyNewMessage).
+    // message notifies again (see notifyNewMessage). `?conversation=` is the
+    // pre-route-refactor link format still present in stored notifications.
     await prisma.notification.updateMany({
       where: {
         userId,
         read: false,
         type: { in: [NotificationType.MESSAGE, NotificationType.GROUP_MESSAGE] },
-        link: { endsWith: `?conversation=${conversationId}` },
+        OR: [
+          { link: { endsWith: `?conversation=${conversationId}` } },
+          ...(target ? [{ link: { endsWith: chatPathSuffix(target) } }] : []),
+        ],
       },
       data: { read: true },
     });
     // The reader is included so their other tabs/devices can refresh unread state.
-    emitToUsers(await participantIdsOf(conversationId), "conversation:read", {
+    emitToUsers(participants, "conversation:read", {
       conversationId,
       userId,
       lastReadAt,
@@ -405,6 +437,7 @@ export const messagesService = {
       conversationId,
       isGroup: membership.conversation.isGroup,
       groupName: membership.conversation.name,
+      senderId: userId,
       senderName: displayNameOf(message.sender),
       preview: previewOf(message) ?? "",
       recipientIds: participants.filter((id) => id !== userId),

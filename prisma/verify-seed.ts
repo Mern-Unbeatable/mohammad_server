@@ -117,9 +117,18 @@ const CHECKS: { name: string; sql: string }[] = [
   {
     name: "conversation notification links point to a conversation the user is in",
     sql: `SELECT count(*) FROM "Notification" n
-          WHERE n.link LIKE '%?conversation=%' AND NOT EXISTS (
-            SELECT 1 FROM "ConversationParticipant" p
-            WHERE p."userId" = n."userId" AND p."conversationId" = split_part(n.link, '?conversation=', 2))`,
+          WHERE n.type IN ('MESSAGE', 'GROUP_MESSAGE') AND NOT (
+            EXISTS (
+              SELECT 1 FROM "ConversationParticipant" p
+              WHERE p."userId" = n."userId"
+                AND p."conversationId" = substring(n.link from '/chat/group/([^/?#]+)$'))
+            OR EXISTS (
+              SELECT 1 FROM "Conversation" c
+              JOIN "ConversationParticipant" p ON p."conversationId" = c.id AND p."userId" = n."userId"
+              WHERE c."isGroup" = false
+                AND c."directKey" IN (
+                  n."userId" || ':' || substring(n.link from '/chat/messages/([^/?#]+)$'),
+                  substring(n.link from '/chat/messages/([^/?#]+)$') || ':' || n."userId")))`,
   },
   {
     name: "no timestamps in the future",
