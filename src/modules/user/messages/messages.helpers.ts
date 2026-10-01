@@ -85,6 +85,7 @@ export const serializeParticipant = (
   avatar: participant.user.profile?.avatarUrl ?? null,
   subtitle: subtitleOf(participant.user),
   role: participant.role,
+  userRole: participant.user.role,
   lastReadAt: participant.lastReadAt,
 });
 
@@ -120,6 +121,7 @@ export const serializeConversation = (
         : "?",
     avatar: conversation.isGroup ? null : (primary?.profile?.avatarUrl ?? null),
     otherUserId: conversation.isGroup ? null : (primary?.id ?? null),
+    otherUserRole: conversation.isGroup ? null : (primary?.role ?? null),
     preview: previewOf(lastMessage),
     time: lastMessage?.createdAt ?? conversation.updatedAt,
     unreadCount,

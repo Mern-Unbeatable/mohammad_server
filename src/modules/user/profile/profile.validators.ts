@@ -2,7 +2,8 @@ import { z } from "zod";
 
 export const updateProfileSchema = z.object({
   firstName: z.string().trim().min(1).max(80).optional(),
-  lastName: z.string().trim().min(1).max(80).optional(),
+  // Empty is allowed so single-word display names (e.g. "Admin") are not doubled.
+  lastName: z.string().trim().max(80).optional(),
   title: z.string().trim().max(120).optional(),
   company: z.string().trim().max(160).optional(),
   country: z.string().trim().max(80).optional(),
