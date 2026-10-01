@@ -1,6 +1,7 @@
 import {
   ConnectionStatus,
   ConversationRole,
+  ListingStatus,
   NotificationType,
   Prisma,
   Role,
@@ -22,6 +23,7 @@ import {
   conversationInclude,
   displayNameOf,
   initialsOf,
+  messageInclude,
   messagesLinkFor,
   type ChatTarget,
   previewOf,
@@ -36,10 +38,6 @@ import type {
   MessageListQuery,
   RecipientsQuery,
 } from "./messages.validators";
-
-const senderInclude = {
-  sender: { include: { profile: true } },
-} satisfies Prisma.MessageInclude;
 
 /** Every whitespace-separated term must match the user's name or email. */
 const userSearchWhere = (search?: string): Prisma.UserWhereInput => {
@@ -94,6 +92,18 @@ const assertActiveUsers = async (ids: string[]) => {
   if (users.length !== ids.length) throw new NotFoundError("User not found");
   if (users.some((user) => user.status !== UserStatus.ACTIVE)) {
     throw new BadRequestError("Some selected users are not active");
+  }
+};
+
+/** Only active listings can be shared; sellers may still reference their own. */
+const assertShareableListing = async (listingId: string, userId: string) => {
+  const listing = await prisma.listing.findUnique({
+    where: { id: listingId },
+    select: { status: true, sellerId: true },
+  });
+  if (!listing) throw new NotFoundError("Listing not found");
+  if (listing.status !== ListingStatus.ACTIVE && listing.sellerId !== userId) {
+    throw new BadRequestError("This listing is no longer available");
   }
 };
 
@@ -276,7 +286,7 @@ export const messagesService = {
         conversationId,
         ...(query.before ? { createdAt: { lt: query.before } } : {}),
       },
-      include: senderInclude,
+      include: messageInclude,
       orderBy: { createdAt: "desc" },
       take: query.pageSize + 1,
     });
@@ -333,10 +343,17 @@ export const messagesService = {
   },
 
   /** Reuses the pair's 1:1 conversation (or creates it), then posts a message. */
-  async startDirect(userId: string, participantId: string, message: string) {
+  async startDirect(
+    userId: string,
+    participantId: string,
+    message: string,
+    listingId?: string,
+  ) {
     if (userId === participantId)
       throw new BadRequestError("You cannot message yourself");
     await assertActiveUsers([participantId]);
+    // Before creating the conversation, so a bad listing leaves no empty thread.
+    if (listingId) await assertShareableListing(listingId, userId);
 
     const directKey = buildDirectKey(userId, participantId);
     let conversation = await prisma.conversation.findUnique({
@@ -373,6 +390,7 @@ export const messagesService = {
     await this.sendMessage(userId, conversation.id, {
       body: message,
       attachments: [],
+      listingId,
     });
     return this.getConversation(userId, conversation.id);
   },
@@ -410,6 +428,7 @@ export const messagesService = {
     content: MessageContent,
   ) {
     const membership = await assertMembership(conversationId, userId);
+    if (content.listingId) await assertShareableListing(content.listingId, userId);
 
     const [message] = await prisma.$transaction([
       prisma.message.create({
@@ -418,8 +437,9 @@ export const messagesService = {
           senderId: userId,
           body: content.body,
           attachments: content.attachments as unknown as Prisma.InputJsonValue,
+          listingId: content.listingId ?? null,
         },
-        include: senderInclude,
+        include: messageInclude,
       }),
       prisma.conversation.update({
         where: { id: conversationId },

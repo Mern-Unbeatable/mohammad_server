@@ -7,6 +7,7 @@ import { emitToUsers } from "@/realtime/socket";
 import {
   conversationInclude,
   ConversationWithRelations,
+  messageInclude,
   previewOf,
   serializeMessage,
   serializeParticipant,
@@ -122,7 +123,7 @@ export const adminMessagesService = {
         conversationId,
         ...(query.before ? { createdAt: { lt: query.before } } : {}),
       },
-      include: { sender: { include: { profile: true } } },
+      include: messageInclude,
       orderBy: { createdAt: "desc" },
       take: query.pageSize + 1,
     });

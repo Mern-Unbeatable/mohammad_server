@@ -77,12 +77,14 @@ export const parseAttachments = (value: Prisma.JsonValue): MessageAttachment[] =
   Array.isArray(value) ? (value as unknown as MessageAttachment[]) : [];
 
 export const previewOf = (
-  message: { body: string; attachments: Prisma.JsonValue } | undefined,
+  message:
+    | { body: string; attachments: Prisma.JsonValue; listingId?: string | null }
+    | undefined,
 ): string | null => {
   if (!message) return null;
   if (message.body) return message.body;
   const count = parseAttachments(message.attachments).length;
-  if (count === 0) return null;
+  if (count === 0) return message.listingId ? "Shared a listing" : null;
   return count === 1 ? "Sent an attachment" : `Sent ${count} attachments`;
 };
 
@@ -141,15 +143,34 @@ export const serializeConversation = (
   };
 };
 
-type MessageWithSender = Prisma.MessageGetPayload<{
-  include: { sender: { include: { profile: true } } };
-}>;
+export const messageInclude = {
+  sender: { include: { profile: true } },
+  listing: {
+    select: { id: true, title: true, price: true, images: true, status: true, sellerId: true },
+  },
+} satisfies Prisma.MessageInclude;
 
-export const serializeMessage = (message: MessageWithSender, userId: string) => ({
+type MessageWithRelations = Prisma.MessageGetPayload<{ include: typeof messageInclude }>;
+
+/** Live listing card data; null when none was shared or the listing was deleted. */
+export const serializeMessageListing = (listing: MessageWithRelations["listing"]) =>
+  listing
+    ? {
+        id: listing.id,
+        title: listing.title,
+        price: listing.price / 100,
+        image: listing.images[0] ?? null,
+        status: listing.status,
+        sellerId: listing.sellerId,
+      }
+    : null;
+
+export const serializeMessage = (message: MessageWithRelations, userId: string) => ({
   id: message.id,
   conversationId: message.conversationId,
   body: message.body,
   attachments: parseAttachments(message.attachments),
+  listing: serializeMessageListing(message.listing),
   from: message.senderId === userId ? ("me" as const) : ("them" as const),
   senderId: message.senderId,
   sender: displayNameOf(message.sender),

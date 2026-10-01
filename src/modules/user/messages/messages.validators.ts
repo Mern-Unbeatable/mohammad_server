@@ -26,20 +26,34 @@ export const attachmentSchema = z.object({
   size: z.coerce.number().int().nonnegative(),
 });
 
+/** Marketplace listing the message is about. */
+const listingIdSchema = z.string().uuid().optional();
+
 const messageContentSchema = z
   .object({
     body: z.string().trim().max(5000).default(""),
     attachments: z.array(attachmentSchema).max(10).default([]),
+    listingId: listingIdSchema,
   })
-  .refine((value) => value.body.length > 0 || value.attachments.length > 0, {
-    message: "A message needs text or at least one attachment",
-    path: ["body"],
-  });
+  .refine(
+    (value) =>
+      value.body.length > 0 || value.attachments.length > 0 || Boolean(value.listingId),
+    {
+      message: "A message needs text, an attachment or a listing",
+      path: ["body"],
+    },
+  );
 
-export const startDirectSchema = z.object({
-  participantId: z.string().uuid(),
-  message: z.string().trim().min(1).max(5000),
-});
+export const startDirectSchema = z
+  .object({
+    participantId: z.string().uuid(),
+    message: z.string().trim().max(5000).default(""),
+    listingId: listingIdSchema,
+  })
+  .refine((value) => value.message.length > 0 || Boolean(value.listingId), {
+    message: "Message is required",
+    path: ["message"],
+  });
 
 export const createGroupSchema = z.object({
   name: z.string().trim().min(1).max(160),

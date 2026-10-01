@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ConversationRole, Role } from "@prisma/client";
+import { ConversationRole, ListingStatus, Role } from "@prisma/client";
 import {
   buildDirectKey,
   isOwnUploadUrl,
@@ -82,12 +82,18 @@ describe("buildDirectKey", () => {
 });
 
 describe("messagesLinkFor", () => {
-  it("points each role at its own inbox route", () => {
-    expect(messagesLinkFor(Role.USER, "c1")).toBe("/messages?conversation=c1");
-    expect(messagesLinkFor(Role.SUPPLIER, "c1")).toBe(
-      "/supplier/messages?conversation=c1",
-    );
-    expect(messagesLinkFor(Role.ADMIN, "c1")).toBe("/admin/chat?conversation=c1");
+  const direct = { isGroup: false, otherUserId: "u2" } as const;
+  const group = { isGroup: true, conversationId: "c1" } as const;
+
+  it("points each role at its own chat route", () => {
+    expect(messagesLinkFor(Role.USER, direct)).toBe("/chat/messages/u2");
+    expect(messagesLinkFor(Role.SUPPLIER, direct)).toBe("/supplier/chat/messages/u2");
+    expect(messagesLinkFor(Role.ADMIN, direct)).toBe("/admin/chat/messages/u2");
+  });
+
+  it("addresses groups by conversation id", () => {
+    expect(messagesLinkFor(Role.USER, group)).toBe("/chat/group/c1");
+    expect(messagesLinkFor(Role.ADMIN, group)).toBe("/admin/chat/group/c1");
   });
 });
 
@@ -112,6 +118,13 @@ describe("previewOf", () => {
     expect(previewOf({ body: "Hi", attachments: [] })).toBe("Hi");
     expect(previewOf({ body: "", attachments: [{}] })).toBe("Sent an attachment");
     expect(previewOf({ body: "", attachments: [{}, {}] })).toBe("Sent 2 attachments");
+  });
+
+  it("describes a listing-only message", () => {
+    expect(previewOf({ body: "", attachments: [], listingId: "l1" })).toBe("Shared a listing");
+    expect(previewOf({ body: "Still available?", attachments: [], listingId: "l1" })).toBe(
+      "Still available?",
+    );
   });
 });
 
@@ -197,6 +210,8 @@ describe("serializeMessage", () => {
     ],
     createdAt: new Date("2026-03-01"),
     sender: alice,
+    listingId: null,
+    listing: null,
   };
 
   it("marks the viewer's own messages as 'me'", () => {
@@ -209,5 +224,32 @@ describe("serializeMessage", () => {
     expect(result.sender).toBe("Alice Martin");
     expect(result.attachments).toHaveLength(1);
     expect(result.time).toEqual(new Date("2026-03-01"));
+    expect(result.listing).toBeNull();
+  });
+
+  it("exposes the shared listing as a card with the price in currency units", () => {
+    const result = serializeMessage(
+      {
+        ...message,
+        listingId: "l1",
+        listing: {
+          id: "l1",
+          title: "HPLC system",
+          price: 1250000,
+          images: ["http://cdn/hplc.png", "http://cdn/hplc-2.png"],
+          status: ListingStatus.ACTIVE,
+          sellerId: "b",
+        },
+      },
+      "a",
+    );
+    expect(result.listing).toEqual({
+      id: "l1",
+      title: "HPLC system",
+      price: 12500,
+      image: "http://cdn/hplc.png",
+      status: ListingStatus.ACTIVE,
+      sellerId: "b",
+    });
   });
 });

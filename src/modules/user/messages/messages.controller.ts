@@ -58,6 +58,7 @@ export const messagesController = {
       req.user!.id,
       req.body.participantId,
       req.body.message,
+      req.body.listingId,
     );
     sendSuccess(res, { statusCode: StatusCodes.CREATED, data });
   }),

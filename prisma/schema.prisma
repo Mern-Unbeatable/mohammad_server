@@ -220,28 +220,28 @@ model User {
   profile      Profile?
   subscription Subscription?
 
-  refreshTokens        RefreshToken[]
-  passwordResetTokens  PasswordResetToken[]
-  feedPosts            FeedPost[]
-  feedComments         FeedComment[]
-  feedReactions        FeedReaction[]
-  feedCommentLikes     FeedCommentLike[]
-  listings             Listing[]
-  savedListings        SavedListing[]
-  jobs                 Job[]
-  jobApplications      JobApplication[]
-  generalPosts         GeneralPost[]
-  blogs                Blog[]
-  advertisements       Advertisement[]
-  notifications        Notification[]
-  messages             Message[]
-  conversationParts    ConversationParticipant[]
-  sentConnections      Connection[]        @relation("ConnectionRequester")
-  receivedConnections  Connection[]        @relation("ConnectionAddressee")
-  reportsMade          Report[]            @relation("ReportReporter")
-  reportsReceived      Report[]            @relation("ReportedUser")
-  moderationActions    ModerationLog[]     @relation("ModerationActor")
-  moderationTargeted   ModerationLog[]     @relation("ModerationTarget")
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  feedPosts           FeedPost[]
+  feedComments        FeedComment[]
+  feedReactions       FeedReaction[]
+  feedCommentLikes    FeedCommentLike[]
+  listings            Listing[]
+  savedListings       SavedListing[]
+  jobs                Job[]
+  jobApplications     JobApplication[]
+  generalPosts        GeneralPost[]
+  blogs               Blog[]
+  advertisements      Advertisement[]
+  notifications       Notification[]
+  messages            Message[]
+  conversationParts   ConversationParticipant[]
+  sentConnections     Connection[]              @relation("ConnectionRequester")
+  receivedConnections Connection[]              @relation("ConnectionAddressee")
+  reportsMade         Report[]                  @relation("ReportReporter")
+  reportsReceived     Report[]                  @relation("ReportedUser")
+  moderationActions   ModerationLog[]           @relation("ModerationActor")
+  moderationTargeted  ModerationLog[]           @relation("ModerationTarget")
 
   @@index([role])
   @@index([status])
@@ -273,25 +273,25 @@ model Profile {
 }
 
 model Subscription {
-  id                     String             @id @default(uuid())
-  userId                 String             @unique
-  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plan                   SubscriptionPlan   @default(FREE)
-  status                 SubscriptionStatus @default(TRIAL)
-  amount                 Int                @default(0) // stored in cents
-  billingCycle           String?
-  startDate              DateTime?
-  renewalDate            DateTime?
-  nextPayment            DateTime?
-  paymentMethod          String?
-  trialDaysLeft          Int                @default(0)
-  trialDaysTotal         Int                @default(90)
-  stripeCustomerId       String?
-  stripeSubscriptionId   String?            @unique
-  stripePriceId          String?
+  id                      String             @id @default(uuid())
+  userId                  String             @unique
+  user                    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                    SubscriptionPlan   @default(FREE)
+  status                  SubscriptionStatus @default(TRIAL)
+  amount                  Int                @default(0) // stored in cents
+  billingCycle            String?
+  startDate               DateTime?
+  renewalDate             DateTime?
+  nextPayment             DateTime?
+  paymentMethod           String?
+  trialDaysLeft           Int                @default(0)
+  trialDaysTotal          Int                @default(90)
+  stripeCustomerId        String?
+  stripeSubscriptionId    String?            @unique
+  stripePriceId           String?
   stripeCheckoutSessionId String?
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
 
   @@index([plan])
   @@index([status])
@@ -299,13 +299,13 @@ model Subscription {
 }
 
 model RefreshToken {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String   @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
   expiresAt DateTime
   revokedAt DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([userId])
 }
@@ -346,15 +346,15 @@ model Connection {
 // ===================================================================
 
 model FeedPost {
-  id        String       @id @default(uuid())
-  authorId  String
-  author    User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  type      FeedPostType @default(INFORMATION)
-  content   String
-  imageUrl  String?
+  id          String       @id @default(uuid())
+  authorId    String
+  author      User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  type        FeedPostType @default(INFORMATION)
+  content     String
+  imageUrl    String?
   documentUrl String?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   comments  FeedComment[]
   reactions FeedReaction[]
@@ -365,16 +365,16 @@ model FeedPost {
 }
 
 model FeedComment {
-  id              String   @id @default(uuid())
+  id              String        @id @default(uuid())
   postId          String
-  post            FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post            FeedPost      @relation(fields: [postId], references: [id], onDelete: Cascade)
   authorId        String
-  author          User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author          User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
   content         String
   parentCommentId String?
   parent          FeedComment?  @relation("CommentThread", fields: [parentCommentId], references: [id], onDelete: Cascade)
   replies         FeedComment[] @relation("CommentThread")
-  createdAt       DateTime @default(now())
+  createdAt       DateTime      @default(now())
 
   likes FeedCommentLike[]
 
@@ -428,7 +428,8 @@ model Listing {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  savedBy SavedListing[]
+  savedBy  SavedListing[]
+  messages Message[]
 
   @@index([category])
   @@index([status])
@@ -583,9 +584,13 @@ model Message {
   body           String       @default("")
   /// Array of { url, name, mimeType, size } pointing at files from /uploads.
   attachments    Json         @default("[]")
+  /// Marketplace listing the message refers to (e.g. sent via "Contact seller").
+  listingId      String?
+  listing        Listing?     @relation(fields: [listingId], references: [id], onDelete: SetNull)
   createdAt      DateTime     @default(now())
 
   @@index([conversationId, createdAt])
+  @@index([listingId])
 }
 
 // ===================================================================
@@ -647,20 +652,20 @@ model Advertisement {
 // ===================================================================
 
 model Report {
-  id            String           @id @default(uuid())
-  reporterId    String
-  reporter      User             @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  id             String           @id @default(uuid())
+  reporterId     String
+  reporter       User             @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
   reportedUserId String?
-  reportedUser  User?            @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
-  targetType    ReportTargetType
-  targetId      String?
-  targetSnippet String?
-  reason        ReportReason
-  reasonDetail  String?
-  status        ReportStatus     @default(PENDING)
-  resolvedAt    DateTime?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  reportedUser   User?            @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
+  targetType     ReportTargetType
+  targetId       String?
+  targetSnippet  String?
+  reason         ReportReason
+  reasonDetail   String?
+  status         ReportStatus     @default(PENDING)
+  resolvedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
   moderationLogs ModerationLog[]
 
@@ -670,16 +675,16 @@ model Report {
 }
 
 model ModerationLog {
-  id        String           @id @default(uuid())
-  reportId  String?
-  report    Report?          @relation(fields: [reportId], references: [id], onDelete: SetNull)
-  actorId   String
-  actor     User             @relation("ModerationActor", fields: [actorId], references: [id], onDelete: Cascade)
+  id           String           @id @default(uuid())
+  reportId     String?
+  report       Report?          @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  actorId      String
+  actor        User             @relation("ModerationActor", fields: [actorId], references: [id], onDelete: Cascade)
   targetUserId String?
-  targetUser User?           @relation("ModerationTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
-  action    ModerationAction
-  note      String?
-  createdAt DateTime         @default(now())
+  targetUser   User?            @relation("ModerationTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+  action       ModerationAction
+  note         String?
+  createdAt    DateTime         @default(now())
 
   @@index([reportId])
   @@index([targetUserId])
