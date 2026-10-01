@@ -32,6 +32,7 @@ router.get(
   validate({ query: recipientsQuerySchema }),
   messagesController.listRecipients,
 );
+router.get("/unread", messagesController.unreadSummary);
 router.post(
   "/direct",
   validate({ body: startDirectSchema }),

@@ -21,6 +21,11 @@ export const messagesController = {
     sendSuccess(res, { data: result.data });
   }),
 
+  unreadSummary: asyncHandler(async (req: Request, res: Response) => {
+    const data = await messagesService.unreadSummary(req.user!.id);
+    sendSuccess(res, { data });
+  }),
+
   getConversation: asyncHandler(async (req: Request, res: Response) => {
     const data = await messagesService.getConversation(
       req.user!.id,

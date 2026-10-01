@@ -114,6 +114,22 @@ const unreadCountsFor = async (
   return new Map(rows.map((row) => [row.conversationId, Number(row.count)]));
 };
 
+const unreadTotalsFor = async (userId: string) => {
+  const [row] = await prisma.$queryRaw<{ messages: bigint; conversations: bigint }[]>`
+    SELECT COUNT(*)::bigint AS "messages",
+           COUNT(DISTINCT m."conversationId")::bigint AS "conversations"
+    FROM "Message" m
+    JOIN "ConversationParticipant" p
+      ON p."conversationId" = m."conversationId" AND p."userId" = ${userId}
+    WHERE m."senderId" <> ${userId}
+      AND (p."lastReadAt" IS NULL OR m."createdAt" > p."lastReadAt")
+  `;
+  return {
+    messages: Number(row?.messages ?? 0),
+    conversations: Number(row?.conversations ?? 0),
+  };
+};
+
 /**
  * One unread notification per conversation per recipient; later messages
  * don't pile up while the earlier notification is still unread.
@@ -207,6 +223,11 @@ export const messagesService = {
     };
   },
 
+  /** Totals across every conversation the caller belongs to (nav badge). */
+  unreadSummary(userId: string) {
+    return unreadTotalsFor(userId);
+  },
+
   async getConversation(userId: string, conversationId: string) {
     await assertMembership(conversationId, userId);
     const conversation = await prisma.conversation.findUniqueOrThrow({
@@ -258,12 +279,12 @@ export const messagesService = {
       where: { conversationId_userId: { conversationId, userId } },
       data: { lastReadAt },
     });
-    const participants = await participantIdsOf(conversationId);
-    emitToUsers(
-      participants.filter((id) => id !== userId),
-      "conversation:read",
-      { conversationId, userId, lastReadAt },
-    );
+    // The reader is included so their other tabs/devices can refresh unread state.
+    emitToUsers(await participantIdsOf(conversationId), "conversation:read", {
+      conversationId,
+      userId,
+      lastReadAt,
+    });
     return { conversationId, lastReadAt };
   },
 
