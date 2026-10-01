@@ -3,7 +3,7 @@ import { Server, Socket } from "socket.io";
 import { Role, UserStatus } from "@prisma/client";
 import { env } from "@/config/env";
 import { logger } from "@/config/logger";
-import { prisma } from "@/infrastructure/prisma";
+import { onNotificationsCreated, prisma } from "@/infrastructure/prisma";
 import { verifyAccessToken } from "@/shared/utils/jwt";
 
 interface SocketUser {
@@ -62,6 +62,8 @@ export const initRealtime = (httpServer: HttpServer): Server => {
       credentials: true,
     },
   });
+
+  onNotificationsCreated((userIds) => emitToUsers(userIds, "notification:new", {}));
 
   io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token;

@@ -1,8 +1,13 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/infrastructure/prisma";
+import { emitToUsers } from "@/realtime/socket";
 import { NotFoundError } from "@/shared/errors/AppError";
 import { buildPaginationMeta } from "@/shared/http/apiResponse";
 import { toPrismaPagination } from "@/shared/http/pagination";
+
+/** Lets the owner's other tabs/devices refresh their unread badge. */
+const announceUpdated = (userId: string) =>
+  emitToUsers([userId], "notification:updated", {});
 
 export const notificationsService = {
   async list(
@@ -45,7 +50,9 @@ export const notificationsService = {
       where: { id, userId },
     });
     if (!notification) throw new NotFoundError("Notification not found");
-    return prisma.notification.update({ where: { id }, data: { read: true } });
+    const updated = await prisma.notification.update({ where: { id }, data: { read: true } });
+    announceUpdated(userId);
+    return updated;
   },
 
   async markAllRead(userId: string) {
@@ -53,6 +60,7 @@ export const notificationsService = {
       where: { userId, read: false },
       data: { read: true },
     });
+    announceUpdated(userId);
   },
 
   async remove(userId: string, id: string) {
@@ -61,5 +69,6 @@ export const notificationsService = {
     });
     if (!notification) throw new NotFoundError("Notification not found");
     await prisma.notification.delete({ where: { id } });
+    announceUpdated(userId);
   },
 };

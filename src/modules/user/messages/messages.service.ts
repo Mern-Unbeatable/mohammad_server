@@ -310,7 +310,7 @@ export const messagesService = {
     // Reading the chat settles its "new message" notification, so the next
     // message notifies again (see notifyNewMessage). `?conversation=` is the
     // pre-route-refactor link format still present in stored notifications.
-    await prisma.notification.updateMany({
+    const settled = await prisma.notification.updateMany({
       where: {
         userId,
         read: false,
@@ -322,6 +322,7 @@ export const messagesService = {
       },
       data: { read: true },
     });
+    if (settled.count > 0) emitToUsers([userId], "notification:updated", {});
     // The reader is included so their other tabs/devices can refresh unread state.
     emitToUsers(participants, "conversation:read", {
       conversationId,
