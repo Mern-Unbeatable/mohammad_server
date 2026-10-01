@@ -2,13 +2,11 @@ import {
   ConnectionStatus,
   ConversationRole,
   ListingStatus,
-  NotificationType,
   Prisma,
   Role,
   UserStatus,
 } from "@prisma/client";
 import { prisma } from "@/infrastructure/prisma";
-import { logger } from "@/config/logger";
 import {
   BadRequestError,
   ForbiddenError,
@@ -19,18 +17,13 @@ import { toPrismaPagination } from "@/shared/http/pagination";
 import { emitToUsers } from "@/realtime/socket";
 import {
   buildDirectKey,
-  chatPathSuffix,
   conversationInclude,
   displayNameOf,
   initialsOf,
   messageInclude,
-  messagesLinkFor,
-  type ChatTarget,
-  previewOf,
   serializeConversation,
   serializeMessage,
   subtitleOf,
-  truncate,
 } from "./messages.helpers";
 import type {
   ConversationListQuery,
@@ -140,54 +133,6 @@ const unreadTotalsFor = async (userId: string) => {
     messages: Number(row?.messages ?? 0),
     conversations: Number(row?.conversations ?? 0),
   };
-};
-
-/**
- * One unread notification per conversation per recipient; later messages
- * don't pile up while the earlier notification is still unread.
- */
-const notifyNewMessage = async (params: {
-  conversationId: string;
-  isGroup: boolean;
-  groupName: string | null;
-  senderId: string;
-  senderName: string;
-  preview: string;
-  recipientIds: string[];
-}) => {
-  if (params.recipientIds.length === 0) return;
-  const recipients = await prisma.user.findMany({
-    where: { id: { in: params.recipientIds } },
-    select: { id: true, role: true },
-  });
-  const target: ChatTarget = params.isGroup
-    ? { isGroup: true, conversationId: params.conversationId }
-    : { isGroup: false, otherUserId: params.senderId };
-  const targets = recipients.map((recipient) => ({
-    userId: recipient.id,
-    link: messagesLinkFor(recipient.role, target),
-  }));
-
-  const pending = await prisma.notification.findMany({
-    where: { read: false, OR: targets },
-    select: { userId: true },
-  });
-  const alreadyNotified = new Set(pending.map((row) => row.userId));
-
-  const data = targets
-    .filter((target) => !alreadyNotified.has(target.userId))
-    .map((target) => ({
-      userId: target.userId,
-      type: params.isGroup ? NotificationType.GROUP_MESSAGE : NotificationType.MESSAGE,
-      title: params.isGroup
-        ? `New message in ${params.groupName ?? "a group"}`
-        : `New message from ${params.senderName}`,
-      subtitle: params.isGroup
-        ? truncate(`${params.senderName}: ${params.preview}`)
-        : truncate(params.preview),
-      link: target.link,
-    }));
-  if (data.length > 0) await prisma.notification.createMany({ data });
 };
 
 export const messagesService = {
@@ -304,35 +249,13 @@ export const messagesService = {
   },
 
   async markRead(userId: string, conversationId: string) {
-    const membership = await assertMembership(conversationId, userId);
+    await assertMembership(conversationId, userId);
     const lastReadAt = new Date();
     await prisma.conversationParticipant.update({
       where: { conversationId_userId: { conversationId, userId } },
       data: { lastReadAt },
     });
     const participants = await participantIdsOf(conversationId);
-    const otherUserId = participants.find((id) => id !== userId);
-    const target: ChatTarget | null = membership.conversation.isGroup
-      ? { isGroup: true, conversationId }
-      : otherUserId
-        ? { isGroup: false, otherUserId }
-        : null;
-    // Reading the chat settles its "new message" notification, so the next
-    // message notifies again (see notifyNewMessage). `?conversation=` is the
-    // pre-route-refactor link format still present in stored notifications.
-    const settled = await prisma.notification.updateMany({
-      where: {
-        userId,
-        read: false,
-        type: { in: [NotificationType.MESSAGE, NotificationType.GROUP_MESSAGE] },
-        OR: [
-          { link: { endsWith: `?conversation=${conversationId}` } },
-          ...(target ? [{ link: { endsWith: chatPathSuffix(target) } }] : []),
-        ],
-      },
-      data: { read: true },
-    });
-    if (settled.count > 0) emitToUsers([userId], "notification:updated", {});
     // The reader is included so their other tabs/devices can refresh unread state.
     emitToUsers(participants, "conversation:read", {
       conversationId,
@@ -427,7 +350,7 @@ export const messagesService = {
     conversationId: string,
     content: MessageContent,
   ) {
-    const membership = await assertMembership(conversationId, userId);
+    await assertMembership(conversationId, userId);
     if (content.listingId) await assertShareableListing(content.listingId, userId);
 
     const [message] = await prisma.$transaction([
@@ -453,16 +376,6 @@ export const messagesService = {
       conversationId,
       message: { ...serializeMessage(message, userId), from: undefined },
     });
-
-    notifyNewMessage({
-      conversationId,
-      isGroup: membership.conversation.isGroup,
-      groupName: membership.conversation.name,
-      senderId: userId,
-      senderName: displayNameOf(message.sender),
-      preview: previewOf(message) ?? "",
-      recipientIds: participants.filter((id) => id !== userId),
-    }).catch((err) => logger.warn({ err }, "Failed to create message notifications"));
 
     return serializeMessage(message, userId);
   },

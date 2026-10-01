@@ -125,6 +125,54 @@ describe("messagesService permissions", () => {
   });
 });
 
+describe("messagesService chat notifications", () => {
+  it("delivers messages without creating notifications", async () => {
+    prismaMock.conversationParticipant.findUnique.mockResolvedValue(membership());
+    prismaMock.$transaction.mockResolvedValue([
+      {
+        id: "m1",
+        conversationId: "c1",
+        senderId: "me",
+        body: "hi",
+        attachments: [],
+        listing: null,
+        createdAt: new Date(),
+        sender: { email: "me@example.com", profile: null },
+      },
+    ]);
+    prismaMock.conversationParticipant.findMany.mockResolvedValue([
+      { userId: "me" },
+      { userId: "other" },
+    ]);
+
+    await messagesService.sendMessage("me", "c1", { body: "hi", attachments: [] });
+
+    expect(emitToUsers).toHaveBeenCalledWith(["me", "other"], "message:new", expect.anything());
+    expect(prismaMock.notification.createMany).not.toHaveBeenCalled();
+  });
+
+  it("marks a conversation read without touching notifications", async () => {
+    prismaMock.conversationParticipant.findUnique.mockResolvedValue(membership());
+    prismaMock.conversationParticipant.findMany.mockResolvedValue([
+      { userId: "me" },
+      { userId: "other" },
+    ]);
+
+    await messagesService.markRead("me", "c1");
+
+    expect(emitToUsers).toHaveBeenCalledWith(
+      ["me", "other"],
+      "conversation:read",
+      expect.objectContaining({ conversationId: "c1", userId: "me" }),
+    );
+    expect(emitToUsers).not.toHaveBeenCalledWith(
+      expect.anything(),
+      "notification:updated",
+      expect.anything(),
+    );
+  });
+});
+
 describe("messagesService.leave", () => {
   it("hands group ownership to the oldest remaining member", async () => {
     prismaMock.conversationParticipant.findUnique.mockResolvedValue(
