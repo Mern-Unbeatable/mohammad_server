@@ -1,6 +1,10 @@
 import { FeedPostType, Prisma, ReactionType } from "@prisma/client";
 import { prisma } from "@/infrastructure/prisma";
-import { ForbiddenError, NotFoundError } from "@/shared/errors/AppError";
+import {
+  BadRequestError,
+  ForbiddenError,
+  NotFoundError,
+} from "@/shared/errors/AppError";
 import { buildPaginationMeta } from "@/shared/http/apiResponse";
 import { toPrismaPagination } from "@/shared/http/pagination";
 import { serializeProfile } from "@/shared/serializers/user.serializer";
@@ -33,7 +37,8 @@ const getPostInclude = (viewerId?: string) =>
       orderBy: { createdAt: "asc" as const },
       include: getCommentInclude(viewerId),
     },
-    _count: { select: { reactions: true, comments: true } },
+    sharedPost: { include: { author: { include: { profile: true } } } },
+    _count: { select: { reactions: true, comments: true, reposts: true } },
   }) satisfies Prisma.FeedPostInclude;
 
 type PostPayload = Prisma.FeedPostGetPayload<{
@@ -41,6 +46,12 @@ type PostPayload = Prisma.FeedPostGetPayload<{
 }>;
 
 type CommentPayload = PostPayload["comments"][number];
+
+type RepostRef = { id: string; isRepost: boolean; sharedPostId: string | null };
+
+/** The post a repost points at; null once that original has been deleted. */
+const getOriginalId = (post: RepostRef) =>
+  post.isRepost ? post.sharedPostId : post.id;
 
 const serializeAuthor = (user: {
   id: string;
@@ -131,10 +142,8 @@ const buildCommentTree = (flat: SerializedComment[]): SerializedComment[] => {
   return roots;
 };
 
-const serializePost = (
-  post: PostPayload,
-  myReaction: ReactionType | null = null,
-  reactionCounts: Partial<Record<ReactionType, number>> = {},
+const serializeSharedPost = (
+  post: NonNullable<PostPayload["sharedPost"]>,
 ) => ({
   id: post.id,
   type: post.type,
@@ -143,6 +152,25 @@ const serializePost = (
   documentUrl: post.documentUrl,
   createdAt: post.createdAt,
   author: serializeAuthor(post.author),
+});
+
+const serializePost = (
+  post: PostPayload,
+  myReaction: ReactionType | null = null,
+  reactionCounts: Partial<Record<ReactionType, number>> = {},
+  sharedByMe = false,
+) => ({
+  id: post.id,
+  type: post.type,
+  content: post.content,
+  imageUrl: post.imageUrl,
+  documentUrl: post.documentUrl,
+  createdAt: post.createdAt,
+  author: serializeAuthor(post.author),
+  isRepost: post.isRepost,
+  sharedPostId: post.sharedPostId,
+  sharedPost: post.sharedPost ? serializeSharedPost(post.sharedPost) : null,
+  sharedByMe,
   myReaction,
   reactionCounts: {
     like: reactionCounts.like ?? 0,
@@ -155,7 +183,7 @@ const serializePost = (
   stats: {
     reactions: post._count.reactions,
     comments: post._count.comments,
-    shares: 0,
+    shares: post._count.reposts,
   },
   comments: buildCommentTree(post.comments.map(serializeCommentFlat)),
 });
@@ -191,6 +219,31 @@ const buildReactionCountsByPost = async (postIds: string[]) => {
 
   return map;
 };
+
+/** Ids of originals (among `posts`) that `userId` has already reposted. */
+const buildRepostedByMe = async (userId: string | undefined, posts: RepostRef[]) => {
+  const originalIds = [
+    ...new Set(posts.map(getOriginalId).filter((id): id is string => Boolean(id))),
+  ];
+  if (!userId || originalIds.length === 0) return new Set<string>();
+
+  const rows = await prisma.feedPost.findMany({
+    where: { authorId: userId, sharedPostId: { in: originalIds } },
+    select: { sharedPostId: true },
+  });
+  return new Set(
+    rows.map((row) => row.sharedPostId).filter((id): id is string => Boolean(id)),
+  );
+};
+
+const isRepostedByMe = (repostedByMe: Set<string>, post: RepostRef) => {
+  const originalId = getOriginalId(post);
+  return Boolean(originalId && repostedByMe.has(originalId));
+};
+
+const countReposts = (originalId: string) =>
+  prisma.feedPost.count({ where: { sharedPostId: originalId } });
+
 export const feedService = {
   async list(
     userId: string,
@@ -236,6 +289,7 @@ export const feedService = {
     const countsByPost = await buildReactionCountsByPost(
       rows.map((row) => row.id),
     );
+    const repostedByMe = await buildRepostedByMe(userId, rows);
 
     return {
       data: rows.map((post) =>
@@ -243,6 +297,7 @@ export const feedService = {
           post,
           myReactionByPost.get(post.id) ?? null,
           countsByPost.get(post.id),
+          isRepostedByMe(repostedByMe, post),
         ),
       ),
       meta: buildPaginationMeta(query.page, query.pageSize, total),
@@ -266,7 +321,13 @@ export const feedService = {
     }
 
     const countsByPost = await buildReactionCountsByPost([id]);
-    return serializePost(post, myReaction, countsByPost.get(id));
+    const repostedByMe = await buildRepostedByMe(userId, [post]);
+    return serializePost(
+      post,
+      myReaction,
+      countsByPost.get(id),
+      isRepostedByMe(repostedByMe, post),
+    );
   },
 
   async create(
@@ -290,13 +351,136 @@ export const feedService = {
     if (!post) throw new NotFoundError("Post not found");
     if (post.authorId !== userId)
       throw new ForbiddenError("You can only edit your own posts");
+    if (
+      post.isRepost &&
+      (input.imageUrl !== undefined || input.documentUrl !== undefined)
+    ) {
+      throw new BadRequestError("Only the caption of a repost can be edited");
+    }
 
     const updated = await prisma.feedPost.update({
       where: { id },
       data: input,
       include: getPostInclude(userId),
     });
-    return serializePost(updated);
+    const repostedByMe = await buildRepostedByMe(userId, [updated]);
+    return serializePost(
+      updated,
+      null,
+      {},
+      isRepostedByMe(repostedByMe, updated),
+    );
+  },
+
+  /**
+   * Repost an original to the caller's feed. Reposting a repost targets its
+   * original; repeating the request returns the existing repost.
+   */
+  async repost(userId: string, postId: string, content: string) {
+    const target = await prisma.feedPost.findUnique({
+      where: { id: postId },
+      select: { id: true, authorId: true, type: true, isRepost: true, sharedPostId: true },
+    });
+    if (!target) throw new NotFoundError("Post not found");
+
+    const originalId = getOriginalId(target);
+    const original =
+      originalId === target.id
+        ? target
+        : originalId
+          ? await prisma.feedPost.findUnique({
+              where: { id: originalId },
+              select: { id: true, authorId: true, type: true },
+            })
+          : null;
+    if (!original) {
+      throw new NotFoundError("The original post is no longer available");
+    }
+    if (original.authorId === userId) {
+      throw new BadRequestError("You can't repost your own post");
+    }
+
+    const uniqueKey = {
+      authorId_sharedPostId: { authorId: userId, sharedPostId: original.id },
+    };
+    let existing = await prisma.feedPost.findUnique({
+      where: uniqueKey,
+      select: { id: true },
+    });
+
+    let created = false;
+    if (!existing) {
+      try {
+        existing = await prisma.feedPost.create({
+          data: {
+            authorId: userId,
+            type: original.type,
+            content,
+            isRepost: true,
+            sharedPostId: original.id,
+          },
+          select: { id: true },
+        });
+        created = true;
+      } catch (error) {
+        // A concurrent request created it first.
+        if (
+          !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+          error.code !== "P2002"
+        ) {
+          throw error;
+        }
+        existing = await prisma.feedPost.findUniqueOrThrow({
+          where: uniqueKey,
+          select: { id: true },
+        });
+      }
+    }
+
+    const [post, shares] = await Promise.all([
+      feedService.getById(existing.id, userId),
+      countReposts(original.id),
+    ]);
+    return {
+      created,
+      reposted: true,
+      originalPostId: original.id,
+      shares,
+      post,
+    };
+  },
+
+  /** Remove the caller's repost of `postId` (or of the original it reposts). Idempotent. */
+  async undoRepost(userId: string, postId: string) {
+    const target = await prisma.feedPost.findUnique({
+      where: { id: postId },
+      select: { id: true, isRepost: true, sharedPostId: true },
+    });
+    if (!target) throw new NotFoundError("Post not found");
+
+    const originalId = getOriginalId(target);
+    if (!originalId) {
+      throw new NotFoundError("The original post is no longer available");
+    }
+
+    const existing = await prisma.feedPost.findUnique({
+      where: {
+        authorId_sharedPostId: { authorId: userId, sharedPostId: originalId },
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      await prisma.feedPost.deleteMany({
+        where: { id: existing.id, authorId: userId },
+      });
+    }
+
+    return {
+      reposted: false,
+      originalPostId: originalId,
+      repostId: existing?.id ?? null,
+      shares: await countReposts(originalId),
+    };
   },
 
   async remove(userId: string, role: string, id: string) {

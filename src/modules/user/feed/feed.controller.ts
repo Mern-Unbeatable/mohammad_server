@@ -67,6 +67,23 @@ export const feedController = {
     sendSuccess(res, { data });
   }),
 
+  repost: asyncHandler(async (req: Request, res: Response) => {
+    const { created, ...data } = await feedService.repost(
+      req.user!.id,
+      req.params.id,
+      req.body.content,
+    );
+    sendSuccess(res, {
+      statusCode: created ? StatusCodes.CREATED : StatusCodes.OK,
+      data,
+    });
+  }),
+
+  undoRepost: asyncHandler(async (req: Request, res: Response) => {
+    const data = await feedService.undoRepost(req.user!.id, req.params.id);
+    sendSuccess(res, { data });
+  }),
+
   react: asyncHandler(async (req: Request, res: Response) => {
     const data = await feedService.react(
       req.params.id,

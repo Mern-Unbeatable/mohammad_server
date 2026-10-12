@@ -9,6 +9,7 @@ import {
   feedListQuerySchema,
   postIdParamSchema,
   reactionSchema,
+  repostSchema,
   updatePostSchema,
 } from "./feed.validators";
 
@@ -54,6 +55,17 @@ router.post(
   "/:id/reactions",
   validate({ params: postIdParamSchema, body: reactionSchema }),
   feedController.react,
+);
+
+router.post(
+  "/:id/repost",
+  validate({ params: postIdParamSchema, body: repostSchema }),
+  feedController.repost,
+);
+router.delete(
+  "/:id/repost",
+  validate({ params: postIdParamSchema }),
+  feedController.undoRepost,
 );
 
 export const feedRoutes = router;

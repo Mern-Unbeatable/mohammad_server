@@ -346,22 +346,29 @@ model Connection {
 // ===================================================================
 
 model FeedPost {
-  id          String       @id @default(uuid())
-  authorId    String
-  author      User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  type        FeedPostType @default(INFORMATION)
-  content     String
-  imageUrl    String?
-  documentUrl String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id           String       @id @default(uuid())
+  authorId     String
+  author       User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  type         FeedPostType @default(INFORMATION)
+  content      String
+  imageUrl     String?
+  documentUrl  String?
+  /// Stays true after the original is deleted (sharedPostId becomes null).
+  isRepost     Boolean      @default(false)
+  sharedPostId String?
+  sharedPost   FeedPost?    @relation("FeedReposts", fields: [sharedPostId], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   comments  FeedComment[]
   reactions FeedReaction[]
+  reposts   FeedPost[]     @relation("FeedReposts")
 
+  @@unique([authorId, sharedPostId])
   @@index([type])
   @@index([authorId])
   @@index([createdAt])
+  @@index([sharedPostId])
 }
 
 model FeedComment {

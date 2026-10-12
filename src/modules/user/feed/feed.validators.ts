@@ -40,6 +40,10 @@ export const updatePostSchema = z.object({
   documentUrl: z.string().url().nullable().optional(),
 });
 
+export const repostSchema = z.object({
+  content: z.string().trim().max(5000).optional().default(""),
+});
+
 export const createCommentSchema = z.object({
   content: z.string().trim().min(1).max(2000),
   parentCommentId: z.string().uuid().optional().nullable(),
