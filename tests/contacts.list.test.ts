@@ -4,8 +4,15 @@ import { ConnectionStatus } from "@prisma/client";
 const { prismaMock } = vi.hoisted(() => ({
   prismaMock: {
     $transaction: vi.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
-    connection: { findMany: vi.fn(), count: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
-    user: { findMany: vi.fn(), count: vi.fn() },
+    connection: {
+      findMany: vi.fn(),
+      count: vi.fn(),
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
+    user: { findMany: vi.fn(), count: vi.fn(), findUnique: vi.fn() },
     profile: { updateMany: vi.fn() },
     notification: { create: vi.fn() },
   },
@@ -210,23 +217,28 @@ describe("contactsService.listContacts directory", () => {
     expect(args.where).toMatchObject({
       id: { not: ME },
       status: "ACTIVE",
-      sentConnections: { none: { addresseeId: ME, status: ConnectionStatus.ACCEPTED } },
-      receivedConnections: { none: { requesterId: ME, status: ConnectionStatus.ACCEPTED } },
+      sentConnections: { none: { addresseeId: ME } },
+      receivedConnections: { none: { requesterId: ME } },
       profile: { country: "France" },
     });
+    // Any status blocks a new request, so the exclusion must not narrow by status.
+    expect(args.where.sentConnections.none).not.toHaveProperty("status");
+    expect(args.where.receivedConnections.none).not.toHaveProperty("status");
     expect(args.where.OR).toHaveLength(4);
   });
 });
 
-describe("contactsService.listContacts directory excludes connected members", () => {
+describe("contactsService.listContacts directory (People)", () => {
   type DirectoryWhere = {
     id: { not: string };
     status: string;
-    sentConnections: { none: { addresseeId: string; status: ConnectionStatus } };
-    receivedConnections: { none: { requesterId: string; status: ConnectionStatus } };
+    sentConnections: { none: { addresseeId: string; status?: ConnectionStatus } };
+    receivedConnections: { none: { requesterId: string; status?: ConnectionStatus } };
   } & UserFilter;
 
   let members: User[] = [];
+
+  const statusMatches = (c: Conn, status?: ConnectionStatus) => status === undefined || c.status === status;
 
   const matchesDirectory = (u: User, where: DirectoryWhere) => {
     const sent = where.sentConnections.none;
@@ -235,10 +247,10 @@ describe("contactsService.listContacts directory excludes connected members", ()
       u.id !== where.id.not &&
       u.status === where.status &&
       !connections.some(
-        (c) => c.requesterId === u.id && c.addresseeId === sent.addresseeId && c.status === sent.status,
+        (c) => c.requesterId === u.id && c.addresseeId === sent.addresseeId && statusMatches(c, sent.status),
       ) &&
       !connections.some(
-        (c) => c.addresseeId === u.id && c.requesterId === received.requesterId && c.status === received.status,
+        (c) => c.addresseeId === u.id && c.requesterId === received.requesterId && statusMatches(c, received.status),
       ) &&
       matchesUser(u, where)
     );
@@ -252,6 +264,29 @@ describe("contactsService.listContacts directory excludes connected members", ()
     );
     prismaMock.user.count.mockImplementation(
       async ({ where }: { where: DirectoryWhere }) => members.filter((u) => matchesDirectory(u, where)).length,
+    );
+    prismaMock.user.findUnique.mockImplementation(
+      async ({ where }: { where: { id: string } }) => members.find((u) => u.id === where.id) ?? null,
+    );
+    prismaMock.connection.findFirst.mockImplementation(
+      async ({ where }: { where: { OR: { requesterId: string; addresseeId: string }[] } }) =>
+        connections.find((c) =>
+          where.OR.some((b) => b.requesterId === c.requesterId && b.addresseeId === c.addresseeId),
+        ) ?? null,
+    );
+    prismaMock.connection.create.mockImplementation(
+      async ({ data }: { data: { requesterId: string; addresseeId: string; status: ConnectionStatus } }) => {
+        const find = (id: string) => members.find((u) => u.id === id)!;
+        const row: Conn = {
+          id: `conn-${String(connections.length).padStart(3, "0")}`,
+          ...data,
+          createdAt: SAME_TIME,
+          requester: find(data.requesterId),
+          addressee: find(data.addresseeId),
+        };
+        connections.push(row);
+        return row;
+      },
     );
   });
 
@@ -274,20 +309,72 @@ describe("contactsService.listContacts directory excludes connected members", ()
     expect(ids).not.toContain(ME);
   });
 
-  it("keeps pending and declined members, annotated with their status", async () => {
+  it("lists only members with no request either way, as connectable", async () => {
+    connect(member("sent"), { status: ConnectionStatus.PENDING });
+    connect(member("received"), { incoming: true, status: ConnectionStatus.PENDING });
+    connect(member("declined-in"), { incoming: true, status: ConnectionStatus.DECLINED });
+    connect(member("declined-out"), { status: ConnectionStatus.DECLINED });
+    connect(member("friend"));
+    member("free");
+
+    const result = await contactsService.listContacts(ME, { page: 1, pageSize: 8, sort: "desc" } as never);
+
+    expect(result.data.map((c) => c.id)).toEqual(["free"]);
+    expect(result.data[0]).toMatchObject({
+      connectionStatus: null,
+      connectionDirection: null,
+      connectionId: null,
+    });
+    expect(result.meta).toMatchObject({ total: 1, totalPages: 1 });
+  });
+
+  it("paginates only connectable members, with accurate totals and no duplicates", async () => {
+    for (let i = 0; i < 6; i++) connect(member(`pending-out-${i}`), { status: ConnectionStatus.PENDING });
+    for (let i = 0; i < 6; i++) connect(member(`pending-in-${i}`), { incoming: true, status: ConnectionStatus.PENDING });
+    for (let i = 0; i < 4; i++) connect(member(`friend-${i}`), { incoming: i % 2 === 0 });
+    for (let i = 0; i < 17; i++) member(`free-${i}`);
+
+    const { ids, meta } = await listAll({});
+
+    expect(meta).toMatchObject({ total: 17, totalPages: 3 });
+    expect(ids).toHaveLength(17);
+    expect(new Set(ids)).toEqual(new Set(Array.from({ length: 17 }, (_, i) => `free-${i}`)));
+  });
+
+  it("only lists members the server will accept a connection request for", async () => {
     connect(member("sent"), { status: ConnectionStatus.PENDING });
     connect(member("received"), { incoming: true, status: ConnectionStatus.PENDING });
     connect(member("declined"), { incoming: true, status: ConnectionStatus.DECLINED });
     connect(member("friend"));
+    for (let i = 0; i < 10; i++) member(`free-${i}`);
 
-    const result = await contactsService.listContacts(ME, { page: 1, pageSize: 8, sort: "desc" } as never);
-    const byId = Object.fromEntries(result.data.map((c) => [c.id, c]));
+    const { ids } = await listAll({});
+    expect(ids).toHaveLength(10);
+    for (const id of ids) {
+      await expect(contactsService.requestConnection(ME, id)).resolves.toMatchObject({
+        requesterId: ME,
+        addresseeId: id,
+        status: ConnectionStatus.PENDING,
+      });
+    }
+    // Every member excluded from People would be rejected.
+    for (const id of ["sent", "received", "declined", "friend"]) {
+      await expect(contactsService.requestConnection(ME, id)).rejects.toThrow(/already exists/);
+    }
+  });
 
-    expect(Object.keys(byId).sort()).toEqual(["declined", "received", "sent"]);
-    expect(byId.sent).toMatchObject({ connectionStatus: "PENDING", connectionDirection: "outgoing" });
-    expect(byId.received).toMatchObject({ connectionStatus: "PENDING", connectionDirection: "incoming" });
-    expect(byId.declined).toMatchObject({ connectionStatus: "DECLINED" });
-    expect(result.meta.total).toBe(3);
+  it("moves a member from People to Pending once a request is sent", async () => {
+    for (let i = 0; i < 8; i++) member(`free-${i}`);
+    member("anna", "Germany", "Anna");
+
+    expect((await listAll({})).meta).toMatchObject({ total: 9, totalPages: 2 });
+
+    await contactsService.requestConnection(ME, "anna");
+
+    const after = await listAll({});
+    expect(after.meta).toMatchObject({ total: 8, totalPages: 1 });
+    expect(after.ids).not.toContain("anna");
+    expect((await listAll({ status: "pending", direction: "outgoing" })).ids).toEqual(["anna"]);
   });
 
   it("does not hide members connected to someone else", async () => {
@@ -322,14 +409,14 @@ describe("contactsService.listContacts directory excludes connected members", ()
     expect(germany.ids).toEqual(["de-anna"]);
   });
 
-  it("moves a member from People to Connected when their request is confirmed", async () => {
+  it("keeps an incoming request out of People and moves it to Connected when confirmed", async () => {
     for (let i = 0; i < 8; i++) member(`free-${i}`);
     connect(member("anna", "Germany", "Anna"), { incoming: true, status: ConnectionStatus.PENDING });
     const request = connections.at(-1)!;
 
     const before = await listAll({});
-    expect(before.meta).toMatchObject({ total: 9, totalPages: 2 });
-    expect(before.ids).toContain("anna");
+    expect(before.meta).toMatchObject({ total: 8, totalPages: 1 });
+    expect(before.ids).not.toContain("anna");
     expect((await listAll({ status: "pending", direction: "incoming" })).ids).toEqual(["anna"]);
     expect((await listAll({ status: "accepted" })).ids).toEqual([]);
 
@@ -338,16 +425,17 @@ describe("contactsService.listContacts directory excludes connected members", ()
     const after = await listAll({});
     expect(after.meta).toMatchObject({ total: 8, totalPages: 1 });
     expect(after.ids).not.toContain("anna");
-    expect(new Set(after.ids).size).toBe(8);
     expect((await listAll({ status: "pending", direction: "incoming" })).ids).toEqual([]);
     expect((await listAll({ status: "accepted" })).ids).toEqual(["anna"]);
   });
 
-  it("keeps a declined request in People and out of Connected", async () => {
+  it("keeps a declined member out of People, Pending, Confirm and Connected", async () => {
     connect(member("bob"), { incoming: true, status: ConnectionStatus.PENDING });
     await contactsService.respondToConnection(ME, connections.at(-1)!.id, false);
 
-    expect((await listAll({})).ids).toEqual(["bob"]);
+    expect((await listAll({})).ids).toEqual([]);
+    expect((await listAll({ status: "pending" })).ids).toEqual([]);
     expect((await listAll({ status: "accepted" })).ids).toEqual([]);
+    await expect(contactsService.requestConnection(ME, "bob")).rejects.toThrow(/already exists/);
   });
 });

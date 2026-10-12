@@ -45,9 +45,10 @@ const memberFilter = (
 
 export const contactsService = {
   /**
-   * Directory of other members not yet connected to the caller, annotated with
-   * any pending/declined connection. Accepted connections are listed via
-   * `status=accepted` instead.
+   * Directory of members the caller can send a connection request to: anyone
+   * with no Connection row involving the caller, in any status or direction,
+   * since `requestConnection` rejects all of those. Pending and accepted
+   * connections are listed via `status` instead.
    */
   async listContacts(userId: string, query: ContactListQuery) {
     const { skip, take } = toPrismaPagination(query.page, query.pageSize);
@@ -108,13 +109,8 @@ export const contactsService = {
     const where: Prisma.UserWhereInput = {
       id: { not: userId },
       status: "ACTIVE",
-      // Either side may have sent the accepted request.
-      sentConnections: {
-        none: { addresseeId: userId, status: ConnectionStatus.ACCEPTED },
-      },
-      receivedConnections: {
-        none: { requesterId: userId, status: ConnectionStatus.ACCEPTED },
-      },
+      sentConnections: { none: { addresseeId: userId } },
+      receivedConnections: { none: { requesterId: userId } },
       ...memberFilter(query),
     };
 
