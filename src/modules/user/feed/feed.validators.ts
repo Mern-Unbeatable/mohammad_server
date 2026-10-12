@@ -17,28 +17,55 @@ export const feedListQuerySchema = paginationQuerySchema.extend({
   mine: z.coerce.boolean().optional(),
 });
 
+export const MAX_POST_IMAGES = 10;
+
+const imageUrlsSchema = z
+  .array(z.string().url())
+  .max(MAX_POST_IMAGES, `A post can have at most ${MAX_POST_IMAGES} images`);
+
+/** `imageUrl` is the older single-image field; it is folded into `imageUrls`. */
 export const createPostSchema = z
   .object({
     type: z.enum(["QUESTION", "INFORMATION", "SUPPLIERS"]).default("INFORMATION"),
     content: z.string().trim().max(5000).optional().default(""),
+    imageUrls: imageUrlsSchema.optional(),
     imageUrl: z.string().url().optional(),
     documentUrl: z.string().url().optional(),
   })
-  .superRefine((data, ctx) => {
-    if (!data.content && !data.imageUrl && !data.documentUrl) {
+  .transform(({ imageUrl, imageUrls, ...rest }, ctx) => {
+    const data = { ...rest, imageUrls: imageUrls ?? (imageUrl ? [imageUrl] : []) };
+    if (!data.content && !data.imageUrls.length && !data.documentUrl) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Post must include content, an image, or a document",
         path: ["content"],
       });
+      return z.NEVER;
     }
+    return data;
   });
 
-export const updatePostSchema = z.object({
-  content: z.string().trim().min(1).max(5000).optional(),
-  imageUrl: z.string().url().nullable().optional(),
-  documentUrl: z.string().url().nullable().optional(),
-});
+export type CreatePostInput = z.infer<typeof createPostSchema>;
+
+/**
+ * Empty content is allowed here; the service rejects edits that leave a post empty.
+ * An empty `imageUrls` (or `imageUrl: null`) removes every image.
+ */
+export const updatePostSchema = z
+  .object({
+    content: z.string().trim().max(5000).optional(),
+    imageUrls: imageUrlsSchema.optional(),
+    imageUrl: z.string().url().nullable().optional(),
+    documentUrl: z.string().url().nullable().optional(),
+  })
+  .transform(({ imageUrl, imageUrls, ...rest }) => ({
+    ...rest,
+    imageUrls:
+      imageUrls ??
+      (imageUrl === undefined ? undefined : imageUrl ? [imageUrl] : []),
+  }));
+
+export type UpdatePostInput = z.infer<typeof updatePostSchema>;
 
 export const repostSchema = z.object({
   content: z.string().trim().max(5000).optional().default(""),

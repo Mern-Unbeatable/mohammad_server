@@ -287,13 +287,32 @@ describe("feedService.list with reposts", () => {
 });
 
 describe("feedService.update on reposts", () => {
-  it("only allows the caption of a repost to change", async () => {
-    rows.push(postRow({ id: REPOST_ID, authorId: "me", isRepost: true, sharedPostId: ORIGINAL_ID }));
+  it("lets a repost add and then remove its own image and document", async () => {
+    rows.push(
+      postRow({ id: REPOST_ID, authorId: "me", content: "", isRepost: true, sharedPostId: ORIGINAL_ID }),
+    );
+    prismaMock.feedPost.update.mockImplementation(async ({ where, data }) => {
+      const row = rows.find((r) => r.id === where.id)!;
+      Object.assign(row, data);
+      return withRelations(row);
+    });
 
-    await expect(
-      feedService.update("me", REPOST_ID, { imageUrl: "http://localhost:4000/uploads/x.png" }),
-    ).rejects.toMatchObject({ statusCode: 400 });
-    expect(prismaMock.feedPost.update).not.toHaveBeenCalled();
+    const added = await feedService.update("me", REPOST_ID, {
+      imageUrls: ["http://localhost:4000/uploads/x.png", "http://localhost:4000/uploads/y.png"],
+      documentUrl: "http://localhost:4000/uploads/x.pdf",
+    });
+    expect(added).toMatchObject({
+      isRepost: true,
+      imageUrls: ["http://localhost:4000/uploads/x.png", "http://localhost:4000/uploads/y.png"],
+      documentUrl: "http://localhost:4000/uploads/x.pdf",
+      sharedPost: { id: ORIGINAL_ID },
+    });
+
+    const removed = await feedService.update("me", REPOST_ID, {
+      imageUrls: [],
+      documentUrl: null,
+    });
+    expect(removed).toMatchObject({ imageUrls: [], documentUrl: null, content: "" });
   });
 });
 

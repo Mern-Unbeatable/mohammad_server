@@ -398,6 +398,7 @@ async function seed(tx: Prisma.TransactionClient, passwordHash: string, docSizes
       type: post.type,
       content: post.content,
       imageUrl: post.image ? imageUrl(post.image) : null,
+      imageUrls: post.image ? [imageUrl(post.image)] : [],
       documentUrl: post.document ? documentUrl(post.document) : null,
       createdAt,
       updatedAt: createdAt,

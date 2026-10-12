@@ -8,6 +8,7 @@ import {
 import { buildPaginationMeta } from "@/shared/http/apiResponse";
 import { toPrismaPagination } from "@/shared/http/pagination";
 import { serializeProfile } from "@/shared/serializers/user.serializer";
+import type { CreatePostInput, UpdatePostInput } from "./feed.validators";
 
 const TYPE_MAP: Record<string, FeedPostType> = {
   question: FeedPostType.QUESTION,
@@ -142,17 +143,34 @@ const buildCommentTree = (flat: SerializedComment[]): SerializedComment[] => {
   return roots;
 };
 
+/** Falls back to `imageUrl` for rows written before `imageUrls` existed. */
+const getImageUrls = (post: { imageUrl: string | null; imageUrls?: string[] | null }) =>
+  post.imageUrls?.length ? post.imageUrls : post.imageUrl ? [post.imageUrl] : [];
+
+const sameList = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((value, index) => value === b[index]);
+
 const serializeSharedPost = (
   post: NonNullable<PostPayload["sharedPost"]>,
 ) => ({
   id: post.id,
   type: post.type,
   content: post.content,
-  imageUrl: post.imageUrl,
+  imageUrl: getImageUrls(post)[0] ?? null,
+  imageUrls: getImageUrls(post),
   documentUrl: post.documentUrl,
   createdAt: post.createdAt,
   author: serializeAuthor(post.author),
 });
+
+/**
+ * Only `feedService.update` writes to existing posts, so an `updatedAt` past
+ * `createdAt` means the author edited it. Any new post write must keep that true.
+ */
+const getEditedAt = (post: { createdAt: Date; updatedAt: Date }) =>
+  post.updatedAt.getTime() - post.createdAt.getTime() > 1000
+    ? post.updatedAt
+    : null;
 
 const serializePost = (
   post: PostPayload,
@@ -163,9 +181,11 @@ const serializePost = (
   id: post.id,
   type: post.type,
   content: post.content,
-  imageUrl: post.imageUrl,
+  imageUrl: getImageUrls(post)[0] ?? null,
+  imageUrls: getImageUrls(post),
   documentUrl: post.documentUrl,
   createdAt: post.createdAt,
+  editedAt: getEditedAt(post),
   author: serializeAuthor(post.author),
   isRepost: post.isRepost,
   sharedPostId: post.sharedPostId,
@@ -330,46 +350,57 @@ export const feedService = {
     );
   },
 
-  async create(
-    authorId: string,
-    input: {
-      type: FeedPostType;
-      content: string;
-      imageUrl?: string;
-      documentUrl?: string;
-    },
-  ) {
+  async create(authorId: string, input: CreatePostInput) {
     const post = await prisma.feedPost.create({
-      data: { authorId, ...input },
+      data: {
+        authorId,
+        type: input.type as FeedPostType,
+        content: input.content,
+        imageUrls: input.imageUrls,
+        imageUrl: input.imageUrls[0] ?? null,
+        documentUrl: input.documentUrl,
+      },
       include: getPostInclude(authorId),
     });
     return serializePost(post);
   },
 
-  async update(userId: string, id: string, input: Prisma.FeedPostUpdateInput) {
+  async update(userId: string, id: string, input: UpdatePostInput) {
     const post = await prisma.feedPost.findUnique({ where: { id } });
     if (!post) throw new NotFoundError("Post not found");
     if (post.authorId !== userId)
       throw new ForbiddenError("You can only edit your own posts");
+
+    const currentImages = getImageUrls(post);
+    const next = {
+      content: input.content ?? post.content,
+      imageUrls: input.imageUrls ?? currentImages,
+      documentUrl:
+        input.documentUrl !== undefined ? input.documentUrl : post.documentUrl,
+    };
     if (
-      post.isRepost &&
-      (input.imageUrl !== undefined || input.documentUrl !== undefined)
+      !post.isRepost &&
+      !next.content &&
+      !next.imageUrls.length &&
+      !next.documentUrl
     ) {
-      throw new BadRequestError("Only the caption of a repost can be edited");
+      throw new BadRequestError(
+        "Post must include content, an image, or a document",
+      );
     }
 
-    const updated = await prisma.feedPost.update({
-      where: { id },
-      data: input,
-      include: getPostInclude(userId),
-    });
-    const repostedByMe = await buildRepostedByMe(userId, [updated]);
-    return serializePost(
-      updated,
-      null,
-      {},
-      isRepostedByMe(repostedByMe, updated),
-    );
+    // Skipping no-op saves keeps `updatedAt`, and so the "edited" state, unchanged.
+    const changed =
+      next.content !== post.content ||
+      !sameList(next.imageUrls, currentImages) ||
+      next.documentUrl !== post.documentUrl;
+    if (changed) {
+      await prisma.feedPost.update({
+        where: { id },
+        data: { ...next, imageUrl: next.imageUrls[0] ?? null },
+      });
+    }
+    return feedService.getById(id, userId);
   },
 
   /**

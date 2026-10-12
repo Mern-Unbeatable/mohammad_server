@@ -351,7 +351,9 @@ model FeedPost {
   author       User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
   type         FeedPostType @default(INFORMATION)
   content      String
+  /// Always `imageUrls[0]`; kept for readers of the old single-image field.
   imageUrl     String?
+  imageUrls    String[]     @default([])
   documentUrl  String?
   /// Stays true after the original is deleted (sharedPostId becomes null).
   isRepost     Boolean      @default(false)
