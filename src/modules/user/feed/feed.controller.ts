@@ -48,14 +48,24 @@ export const feedController = {
     sendSuccess(res, { statusCode: StatusCodes.CREATED, data });
   }),
 
+  updateComment: asyncHandler(async (req: Request, res: Response) => {
+    const data = await feedService.updateComment(
+      req.user!.id,
+      req.params.id,
+      req.params.commentId,
+      req.body.content,
+    );
+    sendSuccess(res, { data });
+  }),
+
   removeComment: asyncHandler(async (req: Request, res: Response) => {
-    await feedService.removeComment(
+    const result = await feedService.removeComment(
       req.user!.id,
       req.user!.role,
       req.params.id,
       req.params.commentId,
     );
-    sendSuccess(res, { data: { message: "Comment deleted" } });
+    sendSuccess(res, { data: { message: "Comment deleted", ...result } });
   }),
 
   likeComment: asyncHandler(async (req: Request, res: Response) => {

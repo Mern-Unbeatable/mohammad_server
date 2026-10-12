@@ -76,6 +76,10 @@ export const createCommentSchema = z.object({
   parentCommentId: z.string().uuid().optional().nullable(),
 });
 
+export const updateCommentSchema = z.object({
+  content: z.string().trim().min(1, "Comment can't be empty").max(2000),
+});
+
 /** Accepts UI ids or legacy uppercase enums; stores normalized lowercase text. */
 export const reactionSchema = z.object({
   type: z

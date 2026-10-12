@@ -581,6 +581,38 @@ export const feedService = {
     };
   },
 
+  /** Only the author may edit; unlike delete, admins get no override. */
+  async updateComment(
+    userId: string,
+    postId: string,
+    commentId: string,
+    content: string,
+  ) {
+    const comment = await prisma.feedComment.findUnique({
+      where: { id: commentId },
+    });
+    if (!comment || comment.postId !== postId)
+      throw new NotFoundError("Comment not found");
+    if (comment.authorId !== userId) {
+      throw new ForbiddenError("You can only edit your own comments");
+    }
+
+    const include = getCommentInclude(userId);
+    const saved =
+      content === comment.content
+        ? await prisma.feedComment.findUniqueOrThrow({
+            where: { id: commentId },
+            include,
+          })
+        : await prisma.feedComment.update({
+            where: { id: commentId },
+            data: { content },
+            include,
+          });
+    return serializeCommentFlat(saved);
+  },
+
+  /** Deleting a root comment cascades to its replies, so the new total is re-counted. */
   async removeComment(
     userId: string,
     role: string,
@@ -596,6 +628,8 @@ export const feedService = {
       throw new ForbiddenError("You can only delete your own comments");
     }
     await prisma.feedComment.delete({ where: { id: commentId } });
+    const commentCount = await prisma.feedComment.count({ where: { postId } });
+    return { postId, commentId, commentCount };
   },
 
   /** Toggle like on a comment — one like per user via unique (commentId, userId). */

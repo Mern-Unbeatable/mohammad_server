@@ -10,6 +10,7 @@ import {
   postIdParamSchema,
   reactionSchema,
   repostSchema,
+  updateCommentSchema,
   updatePostSchema,
 } from "./feed.validators";
 
@@ -39,6 +40,11 @@ router.post(
   "/:id/comments",
   validate({ params: postIdParamSchema, body: createCommentSchema }),
   feedController.addComment,
+);
+router.patch(
+  "/:id/comments/:commentId",
+  validate({ params: commentParamSchema, body: updateCommentSchema }),
+  feedController.updateComment,
 );
 router.delete(
   "/:id/comments/:commentId",
