@@ -15,6 +15,8 @@ export type ReactionTypeValue = (typeof REACTION_TYPES)[number];
 export const feedListQuerySchema = paginationQuerySchema.extend({
   type: z.enum(["question", "information", "suppliers"]).optional(),
   mine: z.coerce.boolean().optional(),
+  /** One member's posts (profile pages); `mine` takes precedence. */
+  authorId: z.string().uuid().optional(),
 });
 
 export const MAX_POST_IMAGES = 10;

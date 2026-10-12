@@ -273,19 +273,22 @@ export const feedService = {
       sort: "asc" | "desc";
       type?: string;
       mine?: boolean;
+      authorId?: string;
     },
   ) {
     const { skip, take } = toPrismaPagination(query.page, query.pageSize);
+    const authorId = query.mine ? userId : query.authorId;
     const where: Prisma.FeedPostWhereInput = {
       ...(query.type ? { type: TYPE_MAP[query.type] } : {}),
-      ...(query.mine ? { authorId: userId } : {}),
+      ...(authorId ? { authorId } : {}),
     };
 
     const [rows, total] = await prisma.$transaction([
       prisma.feedPost.findMany({
         where,
         include: getPostInclude(userId),
-        orderBy: { createdAt: query.sort },
+        // `id` breaks createdAt ties so offset pages never overlap or skip a post.
+        orderBy: [{ createdAt: query.sort }, { id: query.sort }],
         skip,
         take,
       }),
