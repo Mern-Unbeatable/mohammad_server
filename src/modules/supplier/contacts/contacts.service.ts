@@ -25,8 +25,30 @@ const serializeContact = (
   connectionDirection: direction,
 });
 
+/** Country + free-text filters applied to the member being listed. */
+const memberFilter = (
+  query: Pick<ContactListQuery, "country" | "search">,
+): Prisma.UserWhereInput => ({
+  ...(query.country ? { profile: { country: query.country } } : {}),
+  ...(query.search
+    ? {
+        OR: (["firstName", "lastName", "company", "title"] as const).map(
+          (field) => ({
+            profile: {
+              [field]: { contains: query.search, mode: "insensitive" },
+            },
+          }),
+        ),
+      }
+    : {}),
+});
+
 export const contactsService = {
-  /** Directory of other members with the caller's connection state annotated. */
+  /**
+   * Directory of other members not yet connected to the caller, annotated with
+   * any pending/declined connection. Accepted connections are listed via
+   * `status=accepted` instead.
+   */
   async listContacts(userId: string, query: ContactListQuery) {
     const { skip, take } = toPrismaPagination(query.page, query.pageSize);
 
@@ -38,16 +60,19 @@ export const contactsService = {
         declined: ConnectionStatus.DECLINED,
       } as const;
       const connectionStatus = statusMap[query.status];
+      const other = memberFilter(query);
 
+      // Filters apply to the other side of the connection, not the caller.
       const where: Prisma.ConnectionWhereInput = {
         status: connectionStatus,
-        ...(query.direction === "incoming"
-          ? { addresseeId: userId }
-          : query.direction === "outgoing"
-            ? { requesterId: userId }
-            : {
-                OR: [{ requesterId: userId }, { addresseeId: userId }],
-              }),
+        OR: [
+          ...(query.direction === "outgoing"
+            ? []
+            : [{ addresseeId: userId, requester: other }]),
+          ...(query.direction === "incoming"
+            ? []
+            : [{ requesterId: userId, addressee: other }]),
+        ],
       };
 
       const [rows, total] = await prisma.$transaction([
@@ -57,7 +82,8 @@ export const contactsService = {
             requester: { include: { profile: true } },
             addressee: { include: { profile: true } },
           },
-          orderBy: { createdAt: query.sort },
+          // `id` breaks createdAt ties so offset pages never overlap or skip rows.
+          orderBy: [{ createdAt: query.sort }, { id: query.sort }],
           skip,
           take,
         }),
@@ -82,40 +108,21 @@ export const contactsService = {
     const where: Prisma.UserWhereInput = {
       id: { not: userId },
       status: "ACTIVE",
-      ...(query.country ? { profile: { country: query.country } } : {}),
-      ...(query.search
-        ? {
-            OR: [
-              {
-                profile: {
-                  firstName: { contains: query.search, mode: "insensitive" },
-                },
-              },
-              {
-                profile: {
-                  lastName: { contains: query.search, mode: "insensitive" },
-                },
-              },
-              {
-                profile: {
-                  company: { contains: query.search, mode: "insensitive" },
-                },
-              },
-              {
-                profile: {
-                  title: { contains: query.search, mode: "insensitive" },
-                },
-              },
-            ],
-          }
-        : {}),
+      // Either side may have sent the accepted request.
+      sentConnections: {
+        none: { addresseeId: userId, status: ConnectionStatus.ACCEPTED },
+      },
+      receivedConnections: {
+        none: { requesterId: userId, status: ConnectionStatus.ACCEPTED },
+      },
+      ...memberFilter(query),
     };
 
     const [rows, total] = await prisma.$transaction([
       prisma.user.findMany({
         where,
         include: contactInclude,
-        orderBy: { createdAt: query.sort },
+        orderBy: [{ createdAt: query.sort }, { id: query.sort }],
         skip,
         take,
       }),
