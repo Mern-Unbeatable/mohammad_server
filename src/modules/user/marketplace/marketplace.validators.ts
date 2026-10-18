@@ -17,6 +17,7 @@ const CATEGORIES = [
   "SAFETY",
   "CONSUMABLES",
   "MICROSCOPY",
+  "OTHER",
 ] as const;
 
 export const listingListQuerySchema = paginationQuerySchema.extend({

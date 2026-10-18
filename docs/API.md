@@ -118,7 +118,7 @@ Both endpoints share the auth rate limiter.
 | DELETE | `/:id`      | Owner/Admin | Delete listing                                                                       |
 | POST   | `/:id/save` | Bearer      | Toggle saved/bookmark                                                                |
 
-Categories: `CHROMATOGRAPHY`, `SPECTROSCOPY`, `INCUBATION`, `CENTRIFUGATION`, `WEIGHING`, `SAFETY`, `CONSUMABLES`, `MICROSCOPY`. Conditions: `NEW`, `LIKE_NEW`, `GOOD`, `REFURBISHED`, `FOR_PARTS`.
+Categories: `CHROMATOGRAPHY`, `SPECTROSCOPY`, `INCUBATION`, `CENTRIFUGATION`, `WEIGHING`, `SAFETY`, `CONSUMABLES`, `MICROSCOPY`, `OTHER`. Conditions: `NEW`, `LIKE_NEW`, `GOOD`, `REFURBISHED`, `FOR_PARTS`.
 
 ---
 

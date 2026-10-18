@@ -15,7 +15,12 @@ type ListingPayload = Prisma.ListingGetPayload<{
   include: typeof listingInclude;
 }>;
 
-const serializeListing = (listing: ListingPayload, savedIds?: Set<string>) => ({
+/** Seller email/phone go only to the listing details page, never to the listing feed. */
+const serializeListing = (
+  listing: ListingPayload,
+  savedIds?: Set<string>,
+  { showContact = false }: { showContact?: boolean } = {},
+) => ({
   id: listing.id,
   title: listing.title,
   description: listing.description,
@@ -33,6 +38,9 @@ const serializeListing = (listing: ListingPayload, savedIds?: Set<string>) => ({
   seller: {
     id: listing.seller.id,
     ...(listing.seller.profile ? serializeProfile(listing.seller.profile) : {}),
+    phone: showContact ? (listing.seller.profile?.phone ?? null) : undefined,
+    email: showContact ? listing.seller.email : undefined,
+    contactVisible: showContact,
   },
 });
 
@@ -106,7 +114,7 @@ export const marketplaceService = {
     const saved = await prisma.savedListing.findUnique({
       where: { userId_listingId: { userId, listingId: id } },
     });
-    return serializeListing(listing, new Set(saved ? [id] : []));
+    return serializeListing(listing, new Set(saved ? [id] : []), { showContact: true });
   },
 
   async create(

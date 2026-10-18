@@ -1817,6 +1817,7 @@ export const APP_SETTINGS: Record<string, unknown> = {
     "Safety",
     "Consumables",
     "Microscopy",
+    "Other",
   ],
   general_categories: ["News", "Document"],
 };
