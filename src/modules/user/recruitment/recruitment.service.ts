@@ -117,7 +117,22 @@ export const recruitmentService = {
       job.ownerId !== userId &&
       !isAdmin(role);
     if (!job || hidden) throw new NotFoundError("Job not found");
-    return serializeJob(job);
+
+    const myApplication = await prisma.jobApplication.findUnique({
+      where: { jobId_applicantId: { jobId: id, applicantId: userId } },
+      select: { id: true, status: true, createdAt: true },
+    });
+
+    return {
+      ...serializeJob(job),
+      myApplication: myApplication
+        ? {
+            id: myApplication.id,
+            status: myApplication.status,
+            appliedAt: myApplication.createdAt,
+          }
+        : null,
+    };
   },
 
   async create(ownerId: string, input: Prisma.JobCreateWithoutOwnerInput) {

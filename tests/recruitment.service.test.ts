@@ -9,6 +9,7 @@ const { prismaMock } = vi.hoisted(() => ({
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+    jobApplication: { findUnique: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -138,6 +139,34 @@ describe("recruitmentService.getById", () => {
     await expect(
       recruitmentService.getById("admin", "ADMIN", "job1"),
     ).resolves.toMatchObject({ id: "job1" });
+  });
+
+  it("includes the caller's own application", async () => {
+    const appliedAt = new Date("2026-10-01");
+    prismaMock.job.findUnique.mockResolvedValue(job());
+    prismaMock.jobApplication.findUnique.mockResolvedValue({
+      id: "app1",
+      status: "APPLIED",
+      createdAt: appliedAt,
+    });
+    await expect(
+      recruitmentService.getById("someone", "USER", "job1"),
+    ).resolves.toMatchObject({
+      myApplication: { id: "app1", status: "APPLIED", appliedAt },
+    });
+    expect(prismaMock.jobApplication.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { jobId_applicantId: { jobId: "job1", applicantId: "someone" } },
+      }),
+    );
+  });
+
+  it("returns myApplication null when the caller has not applied", async () => {
+    prismaMock.job.findUnique.mockResolvedValue(job());
+    prismaMock.jobApplication.findUnique.mockResolvedValue(null);
+    await expect(
+      recruitmentService.getById("someone", "USER", "job1"),
+    ).resolves.toMatchObject({ myApplication: null });
   });
 
   it("still shows closed jobs to anyone", async () => {
