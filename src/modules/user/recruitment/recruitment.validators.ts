@@ -8,11 +8,21 @@ const EMPLOYMENT = [
   "INTERNSHIP",
 ] as const;
 const LEVELS = ["ENTRY_LEVEL", "MID_LEVEL", "SENIOR"] as const;
+const STATUSES = ["OPEN", "CLOSED", "REMOVED"] as const;
+
+/** `z.coerce.boolean()` turns the string "false" into `true`. */
+const queryBoolean = z.preprocess((value) => {
+  if (value === "true" || value === "1") return true;
+  if (value === "false" || value === "0") return false;
+  return value;
+}, z.boolean());
 
 export const jobListQuerySchema = paginationQuerySchema.extend({
   level: z.enum(LEVELS).optional(),
   employmentType: z.enum(EMPLOYMENT).optional(),
-  mine: z.coerce.boolean().optional(),
+  mine: queryBoolean.optional(),
+  /** Only honoured with `mine`; the public list is always OPEN. */
+  status: z.enum(STATUSES).optional(),
   since: z.enum(["7d", "30d", "90d"]).optional(),
 });
 
@@ -30,7 +40,7 @@ export const createJobSchema = z.object({
 });
 
 export const updateJobSchema = createJobSchema.partial().extend({
-  status: z.enum(["OPEN", "CLOSED", "REMOVED"]).optional(),
+  status: z.enum(STATUSES).optional(),
 });
 
 export const applyJobSchema = z.object({

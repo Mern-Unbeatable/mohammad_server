@@ -8,13 +8,18 @@ export const recruitmentController = {
   list: asyncHandler(async (req: Request, res: Response) => {
     const result = await recruitmentService.list(
       req.user!.id,
+      req.user!.role,
       req.query as never,
     );
     sendSuccess(res, { data: result.data, meta: result.meta });
   }),
 
   getById: asyncHandler(async (req: Request, res: Response) => {
-    const data = await recruitmentService.getById(req.params.id);
+    const data = await recruitmentService.getById(
+      req.user!.id,
+      req.user!.role,
+      req.params.id,
+    );
     sendSuccess(res, { data });
   }),
 

@@ -44,13 +44,37 @@ const serializeJob = (job: JobPayload) => ({
   },
 });
 
+const isAdmin = (role: string) => role === "ADMIN";
+
+/**
+ * `mine` lists every job the caller owns, optionally narrowed by status.
+ * Otherwise only OPEN jobs are listed, and non-admins never see their own
+ * posts there so a job is not listed in both sections.
+ */
+const listScope = (
+  userId: string,
+  role: string,
+  query: JobListQuery,
+): Prisma.JobWhereInput => {
+  if (query.mine) {
+    return {
+      ownerId: userId,
+      ...(query.status ? { status: query.status } : {}),
+    };
+  }
+  return {
+    status: JobStatus.OPEN,
+    ...(isAdmin(role) ? {} : { ownerId: { not: userId } }),
+  };
+};
+
 export const recruitmentService = {
-  async list(userId: string, query: JobListQuery) {
+  async list(userId: string, role: string, query: JobListQuery) {
     const { skip, take } = toPrismaPagination(query.page, query.pageSize);
     const since = sinceToDate(query.since);
 
     const where: Prisma.JobWhereInput = {
-      ...(query.mine ? { ownerId: userId } : { status: JobStatus.OPEN }),
+      ...listScope(userId, role, query),
       ...(query.level ? { level: query.level } : {}),
       ...(query.employmentType ? { employmentType: query.employmentType } : {}),
       ...(since ? { createdAt: { gte: since } } : {}),
@@ -69,7 +93,8 @@ export const recruitmentService = {
       prisma.job.findMany({
         where,
         include: jobInclude,
-        orderBy: { createdAt: query.sort },
+        // `id` breaks createdAt ties so offset pages never overlap or skip rows.
+        orderBy: [{ createdAt: query.sort }, { id: query.sort }],
         skip,
         take,
       }),
@@ -82,12 +107,16 @@ export const recruitmentService = {
     };
   },
 
-  async getById(id: string) {
+  async getById(userId: string, role: string, id: string) {
     const job = await prisma.job.findUnique({
       where: { id },
       include: jobInclude,
     });
-    if (!job) throw new NotFoundError("Job not found");
+    const hidden =
+      job?.status === JobStatus.REMOVED &&
+      job.ownerId !== userId &&
+      !isAdmin(role);
+    if (!job || hidden) throw new NotFoundError("Job not found");
     return serializeJob(job);
   },
 
@@ -107,8 +136,16 @@ export const recruitmentService = {
   ) {
     const job = await prisma.job.findUnique({ where: { id } });
     if (!job) throw new NotFoundError("Job not found");
-    if (job.ownerId !== userId && role !== "ADMIN") {
+    if (job.ownerId !== userId && !isAdmin(role)) {
       throw new ForbiddenError("You can only edit your own job postings");
+    }
+    const changesStatus = input.status !== undefined && input.status !== job.status;
+    const touchesRemoved =
+      input.status === JobStatus.REMOVED || job.status === JobStatus.REMOVED;
+    if (changesStatus && touchesRemoved && !isAdmin(role)) {
+      throw new ForbiddenError(
+        "Only an administrator can remove or restore a job posting",
+      );
     }
     const updated = await prisma.job.update({
       where: { id },
