@@ -7,6 +7,7 @@ const EMPLOYMENT = [
   "CONTRACT",
   "INTERNSHIP",
 ] as const;
+const WORKPLACE = ["ON_SITE", "REMOTE", "HYBRID"] as const;
 const LEVELS = ["ENTRY_LEVEL", "MID_LEVEL", "SENIOR"] as const;
 const STATUSES = ["OPEN", "CLOSED", "REMOVED"] as const;
 
@@ -31,6 +32,7 @@ export const createJobSchema = z.object({
   company: z.string().trim().min(1).max(160),
   location: z.string().trim().min(1).max(160),
   employmentType: z.enum(EMPLOYMENT),
+  workplaceType: z.enum(WORKPLACE).optional(),
   level: z.enum(LEVELS),
   salary: z.string().trim().max(120).optional(),
   applyLink: z.string().url().optional(),
@@ -40,6 +42,8 @@ export const createJobSchema = z.object({
 });
 
 export const updateJobSchema = createJobSchema.partial().extend({
+  /** `null` removes the image. */
+  imageUrl: z.string().url().nullable().optional(),
   status: z.enum(STATUSES).optional(),
 });
 

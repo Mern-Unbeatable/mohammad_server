@@ -29,6 +29,7 @@ const serializeJob = (job: JobPayload) => ({
   company: job.company,
   location: job.location,
   employmentType: job.employmentType,
+  workplaceType: job.workplaceType,
   level: job.level,
   salary: job.salary,
   applyLink: job.applyLink,

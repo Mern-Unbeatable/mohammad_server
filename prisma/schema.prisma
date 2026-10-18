@@ -102,6 +102,12 @@ enum EmploymentType {
   INTERNSHIP
 }
 
+enum WorkplaceType {
+  ON_SITE
+  REMOTE
+  HYBRID
+}
+
 enum JobLevel {
   ENTRY_LEVEL
   MID_LEVEL
@@ -471,6 +477,7 @@ model Job {
   company        String
   location       String
   employmentType EmploymentType
+  workplaceType  WorkplaceType  @default(ON_SITE)
   level          JobLevel
   salary         String?
   applyLink      String?

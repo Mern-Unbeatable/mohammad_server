@@ -17,7 +17,11 @@ const { prismaMock } = vi.hoisted(() => ({
 vi.mock("@/infrastructure/prisma", () => ({ prisma: prismaMock }));
 
 import { recruitmentService } from "@/modules/user/recruitment/recruitment.service";
-import { jobListQuerySchema } from "@/modules/user/recruitment/recruitment.validators";
+import {
+  createJobSchema,
+  jobListQuerySchema,
+  updateJobSchema,
+} from "@/modules/user/recruitment/recruitment.validators";
 
 const job = (overrides: Record<string, unknown> = {}) => ({
   id: "job1",
@@ -25,6 +29,7 @@ const job = (overrides: Record<string, unknown> = {}) => ({
   company: "Acme",
   location: "Dhaka",
   employmentType: "FULL_TIME",
+  workplaceType: "ON_SITE",
   level: "MID_LEVEL",
   salary: null,
   applyLink: null,
@@ -60,6 +65,37 @@ describe("jobListQuerySchema", () => {
 
   it("rejects unknown status values", () => {
     expect(() => listQuery({ status: "DRAFT" })).toThrow();
+  });
+});
+
+describe("job workplace type", () => {
+  const base = {
+    title: "T",
+    company: "C",
+    location: "L",
+    employmentType: "FULL_TIME",
+    level: "SENIOR",
+    about: "A",
+  };
+
+  it("accepts On-site, Remote and Hybrid and leaves it optional", () => {
+    for (const workplaceType of ["ON_SITE", "REMOTE", "HYBRID"]) {
+      expect(createJobSchema.parse({ ...base, workplaceType }).workplaceType).toBe(workplaceType);
+    }
+    expect(createJobSchema.parse(base).workplaceType).toBeUndefined();
+    expect(() => createJobSchema.parse({ ...base, workplaceType: "OFFICE" })).toThrow();
+  });
+
+  it("lets an edit remove the job image with null, but not on create", () => {
+    expect(updateJobSchema.parse({ imageUrl: null }).imageUrl).toBeNull();
+    expect(() => createJobSchema.parse({ ...base, imageUrl: null })).toThrow();
+  });
+
+  it("is returned on the job", async () => {
+    prismaMock.job.findUnique.mockResolvedValue(job({ workplaceType: "REMOTE" }));
+    prismaMock.jobApplication.findUnique.mockResolvedValue(null);
+    const result = await recruitmentService.getById("me", "USER", "job1");
+    expect(result.workplaceType).toBe("REMOTE");
   });
 });
 
