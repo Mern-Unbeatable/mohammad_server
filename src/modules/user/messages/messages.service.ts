@@ -1,7 +1,7 @@
 import {
-  ConnectionStatus,
   ConversationRole,
   ListingStatus,
+  MessageType,
   Prisma,
   Role,
   UserStatus,
@@ -24,6 +24,8 @@ import {
   serializeConversation,
   serializeMessage,
   subtitleOf,
+  systemEventText,
+  type SystemEvent,
 } from "./messages.helpers";
 import type {
   ConversationListQuery,
@@ -88,6 +90,44 @@ const assertActiveUsers = async (ids: string[]) => {
   }
 };
 
+const namesById = async (ids: string[]): Promise<Map<string, string>> => {
+  const users = await prisma.user.findMany({
+    where: { id: { in: ids } },
+    include: { profile: true },
+  });
+  return new Map(users.map((user) => [user.id, displayNameOf(user)]));
+};
+
+/** Records group activity in the thread and pushes it to the current members. */
+const postSystemMessage = async (
+  conversationId: string,
+  actorId: string,
+  actorName: string,
+  event: SystemEvent,
+) => {
+  const [message] = await prisma.$transaction([
+    prisma.message.create({
+      data: {
+        conversationId,
+        senderId: actorId,
+        type: MessageType.SYSTEM,
+        body: systemEventText(actorName, event),
+        event: event as unknown as Prisma.InputJsonValue,
+      },
+      include: messageInclude,
+    }),
+    prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    }),
+  ]);
+  emitToUsers(await participantIdsOf(conversationId), "message:new", {
+    conversationId,
+    message: { ...serializeMessage(message, actorId), from: undefined },
+  });
+  return message;
+};
+
 /** Only active listings can be shared; sellers may still reference their own. */
 const assertShareableListing = async (listingId: string, userId: string) => {
   const listing = await prisma.listing.findUnique({
@@ -112,6 +152,7 @@ const unreadCountsFor = async (
     JOIN "ConversationParticipant" p
       ON p."conversationId" = m."conversationId" AND p."userId" = ${userId}
     WHERE m."senderId" <> ${userId}
+      AND m."type" = 'TEXT'
       AND (p."lastReadAt" IS NULL OR m."createdAt" > p."lastReadAt")
       AND m."conversationId" IN (${Prisma.join(conversationIds)})
     GROUP BY m."conversationId"
@@ -127,6 +168,7 @@ const unreadTotalsFor = async (userId: string) => {
     JOIN "ConversationParticipant" p
       ON p."conversationId" = m."conversationId" AND p."userId" = ${userId}
     WHERE m."senderId" <> ${userId}
+      AND m."type" = 'TEXT'
       AND (p."lastReadAt" IS NULL OR m."createdAt" > p."lastReadAt")
   `;
   return {
@@ -341,8 +383,18 @@ export const messagesService = {
       include: conversationInclude,
     });
 
+    const names = new Map(
+      conversation.participants.map((p) => [p.userId, displayNameOf(p.user)]),
+    );
+    const created = await postSystemMessage(conversation.id, userId, names.get(userId) ?? "", {
+      action: "created",
+      name,
+      targetIds: others,
+      targetNames: others.map((id) => names.get(id) ?? ""),
+    });
+
     emitToUsers(others, "conversation:new", { conversationId: conversation.id });
-    return serializeConversation(conversation, userId, 0);
+    return serializeConversation({ ...conversation, messages: [created] }, userId, 0);
   },
 
   async sendMessage(
@@ -405,13 +457,19 @@ export const messagesService = {
         where: { id: conversationId },
         data: { directKey: null },
       });
-    } else if (
-      membership.role === ConversationRole.OWNER &&
-      !remaining.some((p) => p.role === ConversationRole.OWNER)
-    ) {
-      await prisma.conversationParticipant.update({
-        where: { id: remaining[0].id },
-        data: { role: ConversationRole.OWNER },
+    } else {
+      if (
+        membership.role === ConversationRole.OWNER &&
+        !remaining.some((p) => p.role === ConversationRole.OWNER)
+      ) {
+        await prisma.conversationParticipant.update({
+          where: { id: remaining[0].id },
+          data: { role: ConversationRole.OWNER },
+        });
+      }
+      const names = await namesById([userId]);
+      await postSystemMessage(conversationId, userId, names.get(userId) ?? "", {
+        action: "left",
       });
     }
 
@@ -433,6 +491,9 @@ export const messagesService = {
       where: { id: messageId, conversationId },
     });
     if (!message) throw new NotFoundError("Message not found");
+    if (message.type === MessageType.SYSTEM) {
+      throw new ForbiddenError("Group activity notices cannot be deleted");
+    }
     if (message.senderId !== userId) {
       throw new ForbiddenError("You can only delete your own messages");
     }
@@ -446,10 +507,16 @@ export const messagesService = {
   },
 
   async renameGroup(userId: string, conversationId: string, name: string) {
-    await assertGroupOwner(conversationId, userId);
+    const owner = await assertGroupOwner(conversationId, userId);
+    if (owner.conversation.name === name) return this.getConversation(userId, conversationId);
     await prisma.conversation.update({
       where: { id: conversationId },
       data: { name },
+    });
+    const names = await namesById([userId]);
+    await postSystemMessage(conversationId, userId, names.get(userId) ?? "", {
+      action: "renamed",
+      name,
     });
     emitToUsers(await participantIdsOf(conversationId), "conversation:updated", {
       conversationId,
@@ -477,6 +544,13 @@ export const messagesService = {
       skipDuplicates: true,
     });
 
+    const names = await namesById([userId, ...added]);
+    await postSystemMessage(conversationId, userId, names.get(userId) ?? "", {
+      action: "added",
+      targetIds: added,
+      targetNames: added.map((id) => names.get(id) ?? ""),
+    });
+
     emitToUsers(added, "conversation:new", { conversationId });
     emitToUsers(Array.from(existing), "conversation:updated", { conversationId });
     return this.getConversation(userId, conversationId);
@@ -498,6 +572,13 @@ export const messagesService = {
 
     await prisma.conversationParticipant.delete({ where: { id: target.id } });
 
+    const names = await namesById([userId, targetUserId]);
+    await postSystemMessage(conversationId, userId, names.get(userId) ?? "", {
+      action: "removed",
+      targetIds: [targetUserId],
+      targetNames: [names.get(targetUserId) ?? ""],
+    });
+
     emitToUsers([targetUserId], "conversation:removed", { conversationId });
     emitToUsers(await participantIdsOf(conversationId), "conversation:updated", {
       conversationId,
@@ -505,10 +586,7 @@ export const messagesService = {
     return this.getConversation(userId, conversationId);
   },
 
-  /**
-   * People the caller can start a conversation with: accepted contacts for
-   * members and suppliers, every active user for admins.
-   */
+  /** People the caller can start a conversation with: every other active user. */
   async listRecipients(
     user: { id: string; role: Role },
     query: RecipientsQuery,
@@ -530,28 +608,9 @@ export const messagesService = {
           })
         : null;
 
-    let scope: Prisma.UserWhereInput = {};
-    if (user.role !== Role.ADMIN) {
-      const connections = await prisma.connection.findMany({
-        where: {
-          status: ConnectionStatus.ACCEPTED,
-          OR: [{ requesterId: user.id }, { addresseeId: user.id }],
-        },
-        select: { requesterId: true, addresseeId: true },
-      });
-      const contactIds = connections.map((c) =>
-        c.requesterId === user.id ? c.addresseeId : c.requesterId,
-      );
-      if (contactIds.length === 0) {
-        return { data: included ? [toRecipient(included)] : [] };
-      }
-      scope = { id: { in: contactIds } };
-    }
-
     const users = await prisma.user.findMany({
       where: {
         AND: [
-          scope,
           { id: { not: user.id }, status: UserStatus.ACTIVE },
           userSearchWhere(query.search),
         ],

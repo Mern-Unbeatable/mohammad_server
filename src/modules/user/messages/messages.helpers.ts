@@ -165,9 +165,46 @@ export const serializeMessageListing = (listing: MessageWithRelations["listing"]
       }
     : null;
 
+/** Group activity recorded as a SYSTEM message; names are captured when it happens. */
+export type SystemEvent =
+  | { action: "created"; name: string; targetIds: string[]; targetNames: string[] }
+  | { action: "added" | "removed"; targetIds: string[]; targetNames: string[] }
+  | { action: "left" }
+  | { action: "renamed"; name: string };
+
+/** "Anna", "Anna and Ben", "Anna, Ben and Cara", "Anna, Ben and 3 others". */
+export const joinNames = (names: string[], max = 3): string => {
+  if (names.length <= 1) return names[0] ?? "";
+  if (names.length <= max) {
+    return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  }
+  const rest = names.length - (max - 1);
+  return `${names.slice(0, max - 1).join(", ")} and ${rest} others`;
+};
+
+/** Third-person notice stored as the message body (list previews, clients without event support). */
+export const systemEventText = (actorName: string, event: SystemEvent): string => {
+  switch (event.action) {
+    case "created":
+      return event.targetNames.length
+        ? `${actorName} created the group "${event.name}" and added ${joinNames(event.targetNames)}`
+        : `${actorName} created the group "${event.name}"`;
+    case "added":
+      return `${actorName} added ${joinNames(event.targetNames)}`;
+    case "removed":
+      return `${actorName} removed ${joinNames(event.targetNames)}`;
+    case "left":
+      return `${actorName} left the group`;
+    case "renamed":
+      return `${actorName} renamed the group to "${event.name}"`;
+  }
+};
+
 export const serializeMessage = (message: MessageWithRelations, userId: string) => ({
   id: message.id,
   conversationId: message.conversationId,
+  type: message.type,
+  event: message.event ?? null,
   body: message.body,
   attachments: parseAttachments(message.attachments),
   listing: serializeMessageListing(message.listing),

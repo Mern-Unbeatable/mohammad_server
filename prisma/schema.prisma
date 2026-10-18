@@ -597,10 +597,19 @@ model Message {
   /// Marketplace listing the message refers to (e.g. sent via "Contact seller").
   listingId      String?
   listing        Listing?     @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  /// SYSTEM rows are group activity notices (member added/removed/left, …); `senderId` is the actor.
+  type           MessageType  @default(TEXT)
+  /// For SYSTEM rows: { action, name?, targetIds?, targetNames? }.
+  event          Json?
   createdAt      DateTime     @default(now())
 
   @@index([conversationId, createdAt])
   @@index([listingId])
+}
+
+enum MessageType {
+  TEXT
+  SYSTEM
 }
 
 // ===================================================================

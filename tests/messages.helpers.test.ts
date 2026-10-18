@@ -3,7 +3,9 @@ import { ConversationRole, ListingStatus, Role } from "@prisma/client";
 import {
   buildDirectKey,
   isOwnUploadUrl,
+  joinNames,
   messagesLinkFor,
+  systemEventText,
   previewOf,
   serializeConversation,
   serializeMessage,
@@ -251,5 +253,30 @@ describe("serializeMessage", () => {
       status: ListingStatus.ACTIVE,
       sellerId: "b",
     });
+  });
+});
+
+describe("group activity text", () => {
+  it("joins names with a cap", () => {
+    expect(joinNames(["Anna"])).toBe("Anna");
+    expect(joinNames(["Anna", "Ben"])).toBe("Anna and Ben");
+    expect(joinNames(["Anna", "Ben", "Cara"])).toBe("Anna, Ben and Cara");
+    expect(joinNames(["Anna", "Ben", "Cara", "Dan", "Eve"])).toBe("Anna, Ben and 3 others");
+  });
+
+  it("describes each action in the third person", () => {
+    expect(systemEventText("Nayem", { action: "added", targetIds: ["a"], targetNames: ["Anna"] })).toBe(
+      "Nayem added Anna",
+    );
+    expect(systemEventText("Admin", { action: "removed", targetIds: ["a"], targetNames: ["Anna"] })).toBe(
+      "Admin removed Anna",
+    );
+    expect(systemEventText("Nayem", { action: "left" })).toBe("Nayem left the group");
+    expect(systemEventText("Nayem", { action: "renamed", name: "Mofasa" })).toBe(
+      'Nayem renamed the group to "Mofasa"',
+    );
+    expect(
+      systemEventText("Nayem", { action: "created", name: "Mofasa", targetIds: [], targetNames: [] }),
+    ).toBe('Nayem created the group "Mofasa"');
   });
 });

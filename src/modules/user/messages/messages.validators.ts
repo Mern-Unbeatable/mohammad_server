@@ -10,7 +10,7 @@ export const conversationListQuerySchema = z.object({
 
 export const recipientsQuerySchema = z.object({
   search: z.string().trim().max(200).optional(),
-  /** A specific user to return even outside the contact list (e.g. from a profile's Message button). */
+  /** A specific user to return even when the search or page size would leave them out (e.g. from a profile's Message button). */
   include: z.string().uuid().optional(),
   pageSize: z.coerce.number().int().positive().max(100).default(50),
 });
