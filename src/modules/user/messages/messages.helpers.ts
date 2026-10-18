@@ -214,4 +214,5 @@ export const serializeMessage = (message: MessageWithRelations, userId: string) 
   senderAvatar: message.sender.profile?.avatarUrl ?? null,
   senderInitials: initialsOf(message.sender),
   time: message.createdAt,
+  editedAt: message.editedAt ?? null,
 });

@@ -602,6 +602,8 @@ model Message {
   /// For SYSTEM rows: { action, name?, targetIds?, targetNames? }.
   event          Json?
   createdAt      DateTime     @default(now())
+  /// Set when the sender changes the text after sending.
+  editedAt       DateTime?
 
   @@index([conversationId, createdAt])
   @@index([listingId])

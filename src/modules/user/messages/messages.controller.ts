@@ -113,6 +113,16 @@ export const messagesController = {
     sendSuccess(res, { data });
   }),
 
+  editMessage: asyncHandler(async (req: Request, res: Response) => {
+    const data = await messagesService.editMessage(
+      req.user!.id,
+      req.params.id,
+      req.params.messageId,
+      req.body.body,
+    );
+    sendSuccess(res, { data });
+  }),
+
   deleteMessage: asyncHandler(async (req: Request, res: Response) => {
     const data = await messagesService.deleteMessage(
       req.user!.id,

@@ -62,6 +62,10 @@ export const createGroupSchema = z.object({
 
 export const sendMessageSchema = messageContentSchema;
 
+export const editMessageSchema = z.object({
+  body: z.string().trim().max(5000),
+});
+
 export const renameGroupSchema = z.object({
   name: z.string().trim().min(1).max(160),
 });

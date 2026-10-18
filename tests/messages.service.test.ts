@@ -21,6 +21,7 @@ const { prismaMock, emitToUsers } = vi.hoisted(() => ({
       findFirst: vi.fn(),
       delete: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
     },
     user: { findMany: vi.fn() },
     connection: { findMany: vi.fn() },
@@ -80,6 +81,92 @@ describe("messagesService permissions", () => {
     expect(emitToUsers).toHaveBeenCalledWith(["me", "other"], "message:deleted", {
       conversationId: "c1",
       messageId: "m1",
+    });
+  });
+
+  describe("editMessage", () => {
+    const sent = (overrides: Record<string, unknown> = {}) => ({
+      id: "m1",
+      conversationId: "c1",
+      senderId: "me",
+      type: "TEXT",
+      event: null,
+      body: "helo",
+      attachments: [],
+      listingId: null,
+      listing: null,
+      createdAt: new Date("2026-10-18T06:00:00Z"),
+      editedAt: null,
+      sender: { id: "me", email: "me@lab.eu", profile: { firstName: "Me", lastName: "Lab" } },
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      prismaMock.conversationParticipant.findUnique.mockResolvedValue(membership());
+    });
+
+    it("updates the text, stamps editedAt and broadcasts the change", async () => {
+      const editedAt = new Date("2026-10-18T06:05:00Z");
+      prismaMock.message.findFirst.mockResolvedValue(sent());
+      prismaMock.message.update.mockResolvedValue(sent({ body: "hello", editedAt }));
+      prismaMock.conversationParticipant.findMany.mockResolvedValue([
+        { userId: "me" },
+        { userId: "other" },
+      ]);
+
+      const result = await messagesService.editMessage("me", "c1", "m1", "hello");
+
+      expect(prismaMock.message.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "m1" },
+          data: { body: "hello", editedAt: expect.any(Date) },
+        }),
+      );
+      expect(result).toMatchObject({ body: "hello", editedAt, from: "me" });
+      expect(emitToUsers).toHaveBeenCalledWith(["me", "other"], "message:updated", {
+        conversationId: "c1",
+        message: expect.objectContaining({ id: "m1", body: "hello", editedAt, from: undefined }),
+      });
+    });
+
+    it("leaves unchanged text alone", async () => {
+      prismaMock.message.findFirst.mockResolvedValue(sent());
+      const result = await messagesService.editMessage("me", "c1", "m1", "helo");
+      expect(result).toMatchObject({ body: "helo", editedAt: null });
+      expect(prismaMock.message.update).not.toHaveBeenCalled();
+      expect(emitToUsers).not.toHaveBeenCalled();
+    });
+
+    it("only lets senders edit their own text messages", async () => {
+      prismaMock.message.findFirst.mockResolvedValue(sent({ senderId: "someone-else" }));
+      await expect(messagesService.editMessage("me", "c1", "m1", "x")).rejects.toMatchObject({
+        statusCode: 403,
+      });
+      prismaMock.message.findFirst.mockResolvedValue(sent({ type: "SYSTEM" }));
+      await expect(messagesService.editMessage("me", "c1", "m1", "x")).rejects.toMatchObject({
+        statusCode: 403,
+      });
+      expect(prismaMock.message.update).not.toHaveBeenCalled();
+    });
+
+    it("allows clearing the text only when an attachment or listing remains", async () => {
+      prismaMock.message.findFirst.mockResolvedValue(sent());
+      await expect(messagesService.editMessage("me", "c1", "m1", "")).rejects.toMatchObject({
+        statusCode: 400,
+      });
+
+      prismaMock.message.findFirst.mockResolvedValue(sent({ listingId: "l1" }));
+      prismaMock.message.update.mockResolvedValue(sent({ body: "", listingId: "l1", editedAt: new Date() }));
+      prismaMock.conversationParticipant.findMany.mockResolvedValue([{ userId: "me" }]);
+      await expect(messagesService.editMessage("me", "c1", "m1", "")).resolves.toMatchObject({ body: "" });
+    });
+
+    it("rejects non-members", async () => {
+      prismaMock.conversationParticipant.findUnique.mockResolvedValue(null);
+      await expect(messagesService.editMessage("me", "c1", "m1", "x")).rejects.toMatchObject({
+        statusCode: 403,
+      });
+      expect(prismaMock.message.findFirst).not.toHaveBeenCalled();
     });
   });
 

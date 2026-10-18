@@ -9,6 +9,7 @@ import {
   conversationListQuerySchema,
   createGroupSchema,
   directUserParamSchema,
+  editMessageSchema,
   messageIdParamSchema,
   messageListQuerySchema,
   participantParamSchema,
@@ -71,6 +72,11 @@ router.post(
   "/:id/messages",
   validate({ params: conversationIdParamSchema, body: sendMessageSchema }),
   messagesController.sendMessage,
+);
+router.patch(
+  "/:id/messages/:messageId",
+  validate({ params: messageIdParamSchema, body: editMessageSchema }),
+  messagesController.editMessage,
 );
 router.delete(
   "/:id/messages/:messageId",

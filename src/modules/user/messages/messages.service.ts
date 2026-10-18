@@ -21,6 +21,7 @@ import {
   displayNameOf,
   initialsOf,
   messageInclude,
+  parseAttachments,
   serializeConversation,
   serializeMessage,
   subtitleOf,
@@ -504,6 +505,43 @@ export const messagesService = {
       messageId,
     });
     return { conversationId, messageId, message: "Message deleted" };
+  },
+
+  /** Sender-only text edit; the body may be emptied only when an attachment or listing remains. */
+  async editMessage(
+    userId: string,
+    conversationId: string,
+    messageId: string,
+    body: string,
+  ) {
+    await assertMembership(conversationId, userId);
+    const message = await prisma.message.findFirst({
+      where: { id: messageId, conversationId },
+      include: messageInclude,
+    });
+    if (!message) throw new NotFoundError("Message not found");
+    if (message.type === MessageType.SYSTEM) {
+      throw new ForbiddenError("Group activity notices cannot be edited");
+    }
+    if (message.senderId !== userId) {
+      throw new ForbiddenError("You can only edit your own messages");
+    }
+    if (!body && parseAttachments(message.attachments).length === 0 && !message.listingId) {
+      throw new BadRequestError("A message needs text, an attachment or a listing");
+    }
+    if (body === message.body) return serializeMessage(message, userId);
+
+    const updated = await prisma.message.update({
+      where: { id: messageId },
+      data: { body, editedAt: new Date() },
+      include: messageInclude,
+    });
+
+    emitToUsers(await participantIdsOf(conversationId), "message:updated", {
+      conversationId,
+      message: { ...serializeMessage(updated, userId), from: undefined },
+    });
+    return serializeMessage(updated, userId);
   },
 
   async renameGroup(userId: string, conversationId: string, name: string) {
