@@ -8,11 +8,19 @@ import {
 import { buildPaginationMeta } from "@/shared/http/apiResponse";
 import { toPrismaPagination } from "@/shared/http/pagination";
 import { serializeProfile } from "@/shared/serializers/user.serializer";
-import type { JobListQuery } from "./recruitment.validators";
+import type {
+  JobListQuery,
+  MyApplicationsQuery,
+} from "./recruitment.validators";
+
+/** Applications the job owner can see; cancelled ones are the applicant's history only. */
+const activeApplication = {
+  status: { not: JobApplicationStatus.CANCELLED },
+} satisfies Prisma.JobApplicationWhereInput;
 
 const jobInclude = {
   owner: { include: { profile: true } },
-  _count: { select: { applications: true } },
+  _count: { select: { applications: { where: activeApplication } } },
 } satisfies Prisma.JobInclude;
 
 type JobPayload = Prisma.JobGetPayload<{ include: typeof jobInclude }>;
@@ -126,7 +134,9 @@ export const recruitmentService = {
 
     return {
       ...serializeJob(job),
-      myApplication: myApplication
+      myApplication:
+        myApplication &&
+        myApplication.status !== JobApplicationStatus.CANCELLED
         ? {
             id: myApplication.id,
             status: myApplication.status,
@@ -192,12 +202,22 @@ export const recruitmentService = {
     const existing = await prisma.jobApplication.findUnique({
       where: { jobId_applicantId: { jobId, applicantId } },
     });
-    if (existing)
+    if (existing && existing.status !== JobApplicationStatus.CANCELLED)
       throw new ConflictError("You have already applied to this job");
 
-    const application = await prisma.jobApplication.create({
-      data: { jobId, applicantId, coverLetter },
-    });
+    const application = existing
+      ? await prisma.jobApplication.update({
+          where: { id: existing.id },
+          data: {
+            status: JobApplicationStatus.APPLIED,
+            coverLetter: coverLetter ?? null,
+            ownerSeenAt: null,
+            createdAt: new Date(),
+          },
+        })
+      : await prisma.jobApplication.create({
+          data: { jobId, applicantId, coverLetter },
+        });
 
     await prisma.notification.create({
       data: {
@@ -217,7 +237,12 @@ export const recruitmentService = {
     const application = await prisma.jobApplication.findUnique({
       where: { jobId_applicantId: { jobId, applicantId } },
     });
-    if (!application) throw new NotFoundError("Application not found");
+    if (
+      !application ||
+      application.status === JobApplicationStatus.CANCELLED
+    ) {
+      throw new NotFoundError("Application not found");
+    }
     if (
       application.status === JobApplicationStatus.ACCEPTED ||
       application.status === JobApplicationStatus.REJECTED
@@ -226,8 +251,11 @@ export const recruitmentService = {
         "This application has already been decided and cannot be cancelled",
       );
     }
-    await prisma.jobApplication.delete({ where: { id: application.id } });
-    return { jobId, applicationId: application.id };
+    const updated = await prisma.jobApplication.update({
+      where: { id: application.id },
+      data: { status: JobApplicationStatus.CANCELLED },
+    });
+    return { jobId, applicationId: updated.id, status: updated.status };
   },
 
   async listApplications(ownerId: string, role: string, jobId: string) {
@@ -239,14 +267,14 @@ export const recruitmentService = {
       );
     }
     const applications = await prisma.jobApplication.findMany({
-      where: { jobId },
+      where: { jobId, ...activeApplication },
       include: { applicant: { include: { profile: true } } },
       orderBy: { createdAt: "desc" },
     });
     const isOwner = job.ownerId === ownerId;
     if (isOwner && applications.some((a) => !a.ownerSeenAt)) {
       await prisma.jobApplication.updateMany({
-        where: { jobId, ownerSeenAt: null },
+        where: { jobId, ownerSeenAt: null, ...activeApplication },
         data: { ownerSeenAt: new Date() },
       });
     }
@@ -268,7 +296,7 @@ export const recruitmentService = {
   async newApplicationCounts(ownerId: string) {
     const rows = await prisma.jobApplication.groupBy({
       by: ["jobId"],
-      where: { ownerSeenAt: null, job: { ownerId } },
+      where: { ownerSeenAt: null, job: { ownerId }, ...activeApplication },
       _count: { _all: true },
     });
     const byJob: Record<string, number> = {};
@@ -283,10 +311,16 @@ export const recruitmentService = {
   /** Applications submitted by the current user (applicant view). */
   async listMyApplications(
     applicantId: string,
-    query: { page: number; pageSize: number; sort: "asc" | "desc" },
+    query: MyApplicationsQuery,
   ) {
     const { skip, take } = toPrismaPagination(query.page, query.pageSize);
-    const where = { applicantId };
+    const where: Prisma.JobApplicationWhereInput = {
+      applicantId,
+      ...(query.status === "applied" ? activeApplication : {}),
+      ...(query.status === "cancelled"
+        ? { status: JobApplicationStatus.CANCELLED }
+        : {}),
+    };
 
     const [rows, total] = await prisma.$transaction([
       prisma.jobApplication.findMany({

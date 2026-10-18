@@ -1,4 +1,9 @@
-import { Prisma, Role, UserStatus } from "@prisma/client";
+import {
+  JobApplicationStatus,
+  Prisma,
+  Role,
+  UserStatus,
+} from "@prisma/client";
 import { prisma } from "@/infrastructure/prisma";
 import { NotFoundError } from "@/shared/errors/AppError";
 import {
@@ -150,7 +155,15 @@ export const usersService = {
         prisma.listing.count({ where: { sellerId: id } }),
         prisma.job.findMany({
           where: { ownerId: id },
-          include: { _count: { select: { applications: true } } },
+          include: {
+            _count: {
+              select: {
+                applications: {
+                  where: { status: { not: JobApplicationStatus.CANCELLED } },
+                },
+              },
+            },
+          },
           ...newest,
         }),
         prisma.job.count({ where: { ownerId: id } }),

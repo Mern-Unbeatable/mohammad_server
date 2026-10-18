@@ -14,8 +14,11 @@ const { prismaMock } = vi.hoisted(() => ({
       findMany: vi.fn(),
       updateMany: vi.fn(),
       groupBy: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
       delete: vi.fn(),
     },
+    notification: { create: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -291,6 +294,7 @@ describe("new application badge", () => {
     expect(prismaMock.jobApplication.groupBy.mock.calls[0][0].where).toEqual({
       ownerSeenAt: null,
       job: { ownerId: "me" },
+      status: { not: "CANCELLED" },
     });
   });
 
@@ -302,8 +306,12 @@ describe("new application badge", () => {
     ]);
     const rows = await recruitmentService.listApplications("owner", "USER", "job1");
     expect(rows.map((r) => r.isNew)).toEqual([true, false]);
+    expect(prismaMock.jobApplication.findMany.mock.calls[0][0].where).toEqual({
+      jobId: "job1",
+      status: { not: "CANCELLED" },
+    });
     expect(prismaMock.jobApplication.updateMany).toHaveBeenCalledWith({
-      where: { jobId: "job1", ownerSeenAt: null },
+      where: { jobId: "job1", ownerSeenAt: null, status: { not: "CANCELLED" } },
       data: { ownerSeenAt: expect.any(Date) },
     });
   });
@@ -318,22 +326,41 @@ describe("new application badge", () => {
 });
 
 describe("recruitmentService.withdraw", () => {
-  it("deletes a pending application so the member can re-apply later", async () => {
+  it("marks a pending application cancelled instead of deleting it", async () => {
     prismaMock.jobApplication.findUnique.mockResolvedValue({
       id: "app-1",
       status: "REVIEWED",
+    });
+    prismaMock.jobApplication.update.mockResolvedValue({
+      id: "app-1",
+      status: "CANCELLED",
     });
 
     await expect(recruitmentService.withdraw("job-1", "me")).resolves.toEqual({
       jobId: "job-1",
       applicationId: "app-1",
+      status: "CANCELLED",
     });
     expect(prismaMock.jobApplication.findUnique).toHaveBeenCalledWith({
       where: { jobId_applicantId: { jobId: "job-1", applicantId: "me" } },
     });
-    expect(prismaMock.jobApplication.delete).toHaveBeenCalledWith({
+    expect(prismaMock.jobApplication.update).toHaveBeenCalledWith({
       where: { id: "app-1" },
+      data: { status: "CANCELLED" },
     });
+    expect(prismaMock.jobApplication.delete).not.toHaveBeenCalled();
+  });
+
+  it("treats an already cancelled application as not found", async () => {
+    prismaMock.jobApplication.findUnique.mockResolvedValue({
+      id: "app-1",
+      status: "CANCELLED",
+    });
+
+    await expect(recruitmentService.withdraw("job-1", "me")).rejects.toThrow(
+      /not found/,
+    );
+    expect(prismaMock.jobApplication.update).not.toHaveBeenCalled();
   });
 
   it("keeps accepted or rejected applications", async () => {
@@ -354,5 +381,59 @@ describe("recruitmentService.withdraw", () => {
     await expect(recruitmentService.withdraw("job-1", "me")).rejects.toThrow(
       /not found/,
     );
+  });
+});
+
+describe("recruitmentService.apply after cancelling", () => {
+  it("revives a cancelled application as a fresh one", async () => {
+    prismaMock.job.findUnique.mockResolvedValue(job());
+    prismaMock.jobApplication.findUnique.mockResolvedValue({
+      id: "app-1",
+      status: "CANCELLED",
+    });
+    prismaMock.jobApplication.update.mockResolvedValue({
+      id: "app-1",
+      status: "APPLIED",
+    });
+
+    await expect(
+      recruitmentService.apply("job1", "someone", "Hello"),
+    ).resolves.toMatchObject({ id: "app-1", status: "APPLIED" });
+    expect(prismaMock.jobApplication.update).toHaveBeenCalledWith({
+      where: { id: "app-1" },
+      data: {
+        status: "APPLIED",
+        coverLetter: "Hello",
+        ownerSeenAt: null,
+        createdAt: expect.any(Date),
+      },
+    });
+    expect(prismaMock.jobApplication.create).not.toHaveBeenCalled();
+    expect(prismaMock.notification.create).toHaveBeenCalled();
+  });
+
+  it("still blocks a second active application", async () => {
+    prismaMock.job.findUnique.mockResolvedValue(job());
+    prismaMock.jobApplication.findUnique.mockResolvedValue({
+      id: "app-1",
+      status: "APPLIED",
+    });
+
+    await expect(
+      recruitmentService.apply("job1", "someone"),
+    ).rejects.toThrow(/already applied/);
+  });
+
+  it("hides a cancelled application from the job detail", async () => {
+    prismaMock.job.findUnique.mockResolvedValue(job());
+    prismaMock.jobApplication.findUnique.mockResolvedValue({
+      id: "app-1",
+      status: "CANCELLED",
+      createdAt: new Date(),
+    });
+
+    await expect(
+      recruitmentService.getById("someone", "USER", "job1"),
+    ).resolves.toMatchObject({ myApplication: null });
   });
 });

@@ -53,7 +53,10 @@ export const applyJobSchema = z.object({
 
 export const jobIdParamSchema = z.object({ id: z.string().uuid() });
 
-export const myApplicationsQuerySchema = paginationQuerySchema;
+/** `applied` = every non-cancelled application; `cancelled` = withdrawn ones. */
+export const myApplicationsQuerySchema = paginationQuerySchema.extend({
+  status: z.enum(["applied", "cancelled"]).optional(),
+});
 
 export type JobListQuery = z.infer<typeof jobListQuerySchema>;
 export type MyApplicationsQuery = z.infer<typeof myApplicationsQuerySchema>;
