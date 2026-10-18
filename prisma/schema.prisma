@@ -125,6 +125,8 @@ enum JobApplicationStatus {
   REVIEWED
   ACCEPTED
   REJECTED
+  /// Withdrawn by the applicant; hidden from the job owner, re-applying revives it.
+  CANCELLED
 }
 
 enum GeneralPostType {
