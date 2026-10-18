@@ -69,6 +69,11 @@ export const recruitmentController = {
     sendSuccess(res, { data });
   }),
 
+  newApplicationCounts: asyncHandler(async (req: Request, res: Response) => {
+    const data = await recruitmentService.newApplicationCounts(req.user!.id);
+    sendSuccess(res, { data });
+  }),
+
   listMyApplications: asyncHandler(async (req: Request, res: Response) => {
     const result = await recruitmentService.listMyApplications(
       req.user!.id,

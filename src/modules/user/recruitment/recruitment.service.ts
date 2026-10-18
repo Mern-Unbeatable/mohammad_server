@@ -225,17 +225,41 @@ export const recruitmentService = {
       include: { applicant: { include: { profile: true } } },
       orderBy: { createdAt: "desc" },
     });
+    const isOwner = job.ownerId === ownerId;
+    if (isOwner && applications.some((a) => !a.ownerSeenAt)) {
+      await prisma.jobApplication.updateMany({
+        where: { jobId, ownerSeenAt: null },
+        data: { ownerSeenAt: new Date() },
+      });
+    }
     return applications.map((a) => ({
       id: a.id,
       status: a.status,
       coverLetter: a.coverLetter,
       appliedAt: a.createdAt,
+      isNew: isOwner && !a.ownerSeenAt,
       applicant: {
         id: a.applicant.id,
         email: a.applicant.email,
         ...(a.applicant.profile ? serializeProfile(a.applicant.profile) : {}),
       },
     }));
+  },
+
+  /** Applications on the caller's jobs they have not opened yet, per job. */
+  async newApplicationCounts(ownerId: string) {
+    const rows = await prisma.jobApplication.groupBy({
+      by: ["jobId"],
+      where: { ownerSeenAt: null, job: { ownerId } },
+      _count: { _all: true },
+    });
+    const byJob: Record<string, number> = {};
+    let total = 0;
+    for (const row of rows) {
+      byJob[row.jobId] = row._count._all;
+      total += row._count._all;
+    }
+    return { total, byJob };
   },
 
   /** Applications submitted by the current user (applicant view). */

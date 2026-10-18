@@ -505,11 +505,14 @@ model JobApplication {
   applicant   User                 @relation(fields: [applicantId], references: [id], onDelete: Cascade)
   coverLetter String?
   status      JobApplicationStatus @default(APPLIED)
+  /// When the job owner first viewed this application; null = new.
+  ownerSeenAt DateTime?
   createdAt   DateTime             @default(now())
 
   @@unique([jobId, applicantId])
   @@index([jobId])
   @@index([applicantId])
+  @@index([jobId, ownerSeenAt])
 }
 
 // ===================================================================

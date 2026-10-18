@@ -32,6 +32,10 @@ router.get(
   recruitmentController.listMyApplications,
 );
 router.get(
+  "/applications/new-count",
+  recruitmentController.newApplicationCounts,
+);
+router.get(
   "/:id",
   validate({ params: jobIdParamSchema }),
   recruitmentController.getById,

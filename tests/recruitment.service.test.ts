@@ -9,7 +9,12 @@ const { prismaMock } = vi.hoisted(() => ({
       findUnique: vi.fn(),
       update: vi.fn(),
     },
-    jobApplication: { findUnique: vi.fn() },
+    jobApplication: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      updateMany: vi.fn(),
+      groupBy: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -262,5 +267,51 @@ describe("recruitmentService.update status rules", () => {
     await expect(
       recruitmentService.update("someone", "USER", "job1", { title: "x" }),
     ).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
+
+describe("new application badge", () => {
+  const application = (id: string, ownerSeenAt: Date | null) => ({
+    id,
+    status: "APPLIED",
+    coverLetter: null,
+    createdAt: new Date(),
+    ownerSeenAt,
+    applicant: { id: `u-${id}`, email: `${id}@test`, profile: null },
+  });
+
+  it("counts unseen applications on the caller's jobs, per job", async () => {
+    prismaMock.jobApplication.groupBy.mockResolvedValue([
+      { jobId: "a", _count: { _all: 2 } },
+      { jobId: "b", _count: { _all: 1 } },
+    ]);
+    const result = await recruitmentService.newApplicationCounts("me");
+    expect(result).toEqual({ total: 3, byJob: { a: 2, b: 1 } });
+    expect(prismaMock.jobApplication.groupBy.mock.calls[0][0].where).toEqual({
+      ownerSeenAt: null,
+      job: { ownerId: "me" },
+    });
+  });
+
+  it("flags new applications for the owner and marks them seen", async () => {
+    prismaMock.job.findUnique.mockResolvedValue(job());
+    prismaMock.jobApplication.findMany.mockResolvedValue([
+      application("new", null),
+      application("old", new Date()),
+    ]);
+    const rows = await recruitmentService.listApplications("owner", "USER", "job1");
+    expect(rows.map((r) => r.isNew)).toEqual([true, false]);
+    expect(prismaMock.jobApplication.updateMany).toHaveBeenCalledWith({
+      where: { jobId: "job1", ownerSeenAt: null },
+      data: { ownerSeenAt: expect.any(Date) },
+    });
+  });
+
+  it("does not mark applications seen when an admin views them", async () => {
+    prismaMock.job.findUnique.mockResolvedValue(job());
+    prismaMock.jobApplication.findMany.mockResolvedValue([application("new", null)]);
+    const rows = await recruitmentService.listApplications("admin", "ADMIN", "job1");
+    expect(rows[0].isNew).toBe(false);
+    expect(prismaMock.jobApplication.updateMany).not.toHaveBeenCalled();
   });
 });
