@@ -14,6 +14,7 @@ const { prismaMock } = vi.hoisted(() => ({
       findMany: vi.fn(),
       updateMany: vi.fn(),
       groupBy: vi.fn(),
+      delete: vi.fn(),
     },
     $transaction: vi.fn(),
   },
@@ -313,5 +314,45 @@ describe("new application badge", () => {
     const rows = await recruitmentService.listApplications("admin", "ADMIN", "job1");
     expect(rows[0].isNew).toBe(false);
     expect(prismaMock.jobApplication.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("recruitmentService.withdraw", () => {
+  it("deletes a pending application so the member can re-apply later", async () => {
+    prismaMock.jobApplication.findUnique.mockResolvedValue({
+      id: "app-1",
+      status: "REVIEWED",
+    });
+
+    await expect(recruitmentService.withdraw("job-1", "me")).resolves.toEqual({
+      jobId: "job-1",
+      applicationId: "app-1",
+    });
+    expect(prismaMock.jobApplication.findUnique).toHaveBeenCalledWith({
+      where: { jobId_applicantId: { jobId: "job-1", applicantId: "me" } },
+    });
+    expect(prismaMock.jobApplication.delete).toHaveBeenCalledWith({
+      where: { id: "app-1" },
+    });
+  });
+
+  it("keeps accepted or rejected applications", async () => {
+    prismaMock.jobApplication.findUnique.mockResolvedValue({
+      id: "app-1",
+      status: "ACCEPTED",
+    });
+
+    await expect(recruitmentService.withdraw("job-1", "me")).rejects.toThrow(
+      /cannot be cancelled/,
+    );
+    expect(prismaMock.jobApplication.delete).not.toHaveBeenCalled();
+  });
+
+  it("fails when the member has not applied", async () => {
+    prismaMock.jobApplication.findUnique.mockResolvedValue(null);
+
+    await expect(recruitmentService.withdraw("job-1", "me")).rejects.toThrow(
+      /not found/,
+    );
   });
 });

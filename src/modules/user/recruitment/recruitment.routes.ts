@@ -55,6 +55,11 @@ router.post(
   validate({ params: jobIdParamSchema, body: applyJobSchema }),
   recruitmentController.apply,
 );
+router.delete(
+  "/:id/apply",
+  validate({ params: jobIdParamSchema }),
+  recruitmentController.withdraw,
+);
 router.get(
   "/:id/applications",
   validate({ params: jobIdParamSchema }),

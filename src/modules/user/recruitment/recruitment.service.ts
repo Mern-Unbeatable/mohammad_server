@@ -1,4 +1,4 @@
-import { JobStatus, Prisma } from "@prisma/client";
+import { JobApplicationStatus, JobStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/infrastructure/prisma";
 import {
   ConflictError,
@@ -210,6 +210,24 @@ export const recruitmentService = {
     });
 
     return application;
+  },
+
+  /** Applicant cancels their own application; decided ones are kept. */
+  async withdraw(jobId: string, applicantId: string) {
+    const application = await prisma.jobApplication.findUnique({
+      where: { jobId_applicantId: { jobId, applicantId } },
+    });
+    if (!application) throw new NotFoundError("Application not found");
+    if (
+      application.status === JobApplicationStatus.ACCEPTED ||
+      application.status === JobApplicationStatus.REJECTED
+    ) {
+      throw new ConflictError(
+        "This application has already been decided and cannot be cancelled",
+      );
+    }
+    await prisma.jobApplication.delete({ where: { id: application.id } });
+    return { jobId, applicationId: application.id };
   },
 
   async listApplications(ownerId: string, role: string, jobId: string) {

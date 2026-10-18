@@ -60,6 +60,14 @@ export const recruitmentController = {
     });
   }),
 
+  withdraw: asyncHandler(async (req: Request, res: Response) => {
+    const data = await recruitmentService.withdraw(
+      req.params.id,
+      req.user!.id,
+    );
+    sendSuccess(res, { data, message: "Application cancelled" });
+  }),
+
   listApplications: asyncHandler(async (req: Request, res: Response) => {
     const data = await recruitmentService.listApplications(
       req.user!.id,
