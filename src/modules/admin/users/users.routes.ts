@@ -27,6 +27,12 @@ router.get(
   validate({ params: idParamSchema }),
   usersController.getById,
 );
+router.get(
+  "/:id/content",
+  authorize(Role.ADMIN),
+  validate({ params: idParamSchema }),
+  usersController.getContent,
+);
 router.patch(
   "/:id/status",
   authorize(Role.ADMIN),

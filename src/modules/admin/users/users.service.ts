@@ -132,4 +132,70 @@ export const usersService = {
 
     return serializeUser(updated);
   },
+
+  /** Latest ads, marketplace listings and job posts owned by a user, with totals. */
+  async getUserContent(id: string, take = 6) {
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!user) throw new NotFoundError("User not found");
+
+    const newest = { orderBy: { createdAt: "desc" as const }, take };
+    const [ads, adsTotal, listings, listingsTotal, jobs, jobsTotal] =
+      await prisma.$transaction([
+        prisma.advertisement.findMany({ where: { supplierId: id }, ...newest }),
+        prisma.advertisement.count({ where: { supplierId: id } }),
+        prisma.listing.findMany({ where: { sellerId: id }, ...newest }),
+        prisma.listing.count({ where: { sellerId: id } }),
+        prisma.job.findMany({
+          where: { ownerId: id },
+          include: { _count: { select: { applications: true } } },
+          ...newest,
+        }),
+        prisma.job.count({ where: { ownerId: id } }),
+      ]);
+
+    return {
+      advertisements: {
+        total: adsTotal,
+        items: ads.map((ad) => ({
+          id: ad.id,
+          title: ad.title,
+          category: ad.category,
+          status: ad.status,
+          imageUrl: ad.imageUrl,
+          views: ad.views,
+          clicks: ad.clicks,
+          startDate: ad.startDate,
+          expiryDate: ad.expiryDate,
+          createdAt: ad.createdAt,
+        })),
+      },
+      listings: {
+        total: listingsTotal,
+        items: listings.map((listing) => ({
+          id: listing.id,
+          title: listing.title,
+          category: listing.category,
+          status: listing.status,
+          price: listing.price / 100,
+          imageUrl: listing.images[0] ?? null,
+          createdAt: listing.createdAt,
+        })),
+      },
+      jobs: {
+        total: jobsTotal,
+        items: jobs.map((job) => ({
+          id: job.id,
+          title: job.title,
+          company: job.company,
+          status: job.status,
+          imageUrl: job.imageUrl,
+          applicationsCount: job._count.applications,
+          createdAt: job.createdAt,
+        })),
+      },
+    };
+  },
 };

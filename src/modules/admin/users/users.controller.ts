@@ -15,6 +15,11 @@ export const usersController = {
     sendSuccess(res, { data });
   }),
 
+  getContent: asyncHandler(async (req: Request, res: Response) => {
+    const data = await usersService.getUserContent(req.params.id);
+    sendSuccess(res, { data });
+  }),
+
   updateStatus: asyncHandler(async (req: Request, res: Response) => {
     const data = await usersService.updateStatus(
       req.params.id,
