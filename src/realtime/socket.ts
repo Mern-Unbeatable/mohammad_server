@@ -120,6 +120,31 @@ export const initRealtime = (httpServer: HttpServer): Server => {
       }
     });
 
+    // Relays "typing" to the other participants; the client throttles, so this
+    // runs at most every few seconds per typing user.
+    socket.on("typing", async (payload: unknown) => {
+      const { conversationId, typing } = (payload ?? {}) as {
+        conversationId?: unknown;
+        typing?: unknown;
+      };
+      if (typeof conversationId !== "string" || !conversationId) return;
+      try {
+        const participants = await prisma.conversationParticipant.findMany({
+          where: { conversationId },
+          select: { userId: true },
+        });
+        const ids = participants.map((p) => p.userId);
+        if (!ids.includes(userId)) return;
+        emitToUsers(
+          ids.filter((id) => id !== userId),
+          "typing",
+          { conversationId, userId, typing: typing === true },
+        );
+      } catch (err) {
+        logger.warn({ err }, "Typing relay failed");
+      }
+    });
+
     socket.on("disconnect", () => {
       const remaining = (connectionCounts.get(userId) ?? 1) - 1;
       if (remaining > 0) {
