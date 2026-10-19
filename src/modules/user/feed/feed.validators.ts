@@ -21,8 +21,14 @@ export const feedListQuerySchema = paginationQuerySchema.extend({
 
 export const MAX_POST_IMAGES = 10;
 
+/** `z.string().url()` also accepts `javascript:` / `data:` URLs, which clients render as links. */
+const mediaUrlSchema = z
+  .string()
+  .url()
+  .refine((value) => /^https?:\/\//i.test(value), "URL must start with http:// or https://");
+
 const imageUrlsSchema = z
-  .array(z.string().url())
+  .array(mediaUrlSchema)
   .max(MAX_POST_IMAGES, `A post can have at most ${MAX_POST_IMAGES} images`);
 
 /** `imageUrl` is the older single-image field; it is folded into `imageUrls`. */
@@ -31,8 +37,8 @@ export const createPostSchema = z
     type: z.enum(["QUESTION", "INFORMATION", "SUPPLIERS"]).default("INFORMATION"),
     content: z.string().trim().max(5000).optional().default(""),
     imageUrls: imageUrlsSchema.optional(),
-    imageUrl: z.string().url().optional(),
-    documentUrl: z.string().url().optional(),
+    imageUrl: mediaUrlSchema.optional(),
+    documentUrl: mediaUrlSchema.optional(),
   })
   .transform(({ imageUrl, imageUrls, ...rest }, ctx) => {
     const data = { ...rest, imageUrls: imageUrls ?? (imageUrl ? [imageUrl] : []) };
@@ -57,8 +63,8 @@ export const updatePostSchema = z
   .object({
     content: z.string().trim().max(5000).optional(),
     imageUrls: imageUrlsSchema.optional(),
-    imageUrl: z.string().url().nullable().optional(),
-    documentUrl: z.string().url().nullable().optional(),
+    imageUrl: mediaUrlSchema.nullable().optional(),
+    documentUrl: mediaUrlSchema.nullable().optional(),
   })
   .transform(({ imageUrl, imageUrls, ...rest }) => ({
     ...rest,

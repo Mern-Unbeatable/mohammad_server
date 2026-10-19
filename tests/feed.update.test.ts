@@ -194,6 +194,21 @@ describe("feed post image validation", () => {
     expect(createPostSchema.safeParse({ imageUrls: [] }).success).toBe(false);
   });
 
+  it("only accepts http(s) media URLs, since clients render them as links and images", () => {
+    const unsafe = ["javascript:alert(1)", "data:text/html,<b>x</b>", "file:///etc/passwd"];
+    for (const url of unsafe) {
+      expect(createPostSchema.safeParse({ content: "x", documentUrl: url }).success).toBe(false);
+      expect(createPostSchema.safeParse({ content: "x", imageUrls: [url] }).success).toBe(false);
+      expect(createPostSchema.safeParse({ content: "x", imageUrl: url }).success).toBe(false);
+      expect(updatePostSchema.safeParse({ documentUrl: url }).success).toBe(false);
+      expect(updatePostSchema.safeParse({ imageUrls: [url] }).success).toBe(false);
+    }
+    expect(
+      createPostSchema.safeParse({ documentUrl: "https://cdn.test/uploads/report.pdf" }).success,
+    ).toBe(true);
+    expect(updatePostSchema.parse({ documentUrl: null }).documentUrl).toBeNull();
+  });
+
   it("stores every image on create with imageUrl as the first", async () => {
     prismaMock.feedPost.create.mockImplementation(async ({ data }) =>
       postRow({ ...data, id: POST_ID }),
