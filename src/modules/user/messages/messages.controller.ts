@@ -81,11 +81,11 @@ export const messagesController = {
     sendSuccess(res, { statusCode: StatusCodes.CREATED, data });
   }),
 
-  renameGroup: asyncHandler(async (req: Request, res: Response) => {
-    const data = await messagesService.renameGroup(
+  updateGroup: asyncHandler(async (req: Request, res: Response) => {
+    const data = await messagesService.updateGroup(
       req.user!.id,
       req.params.id,
-      req.body.name,
+      req.body,
     );
     sendSuccess(res, { data });
   }),

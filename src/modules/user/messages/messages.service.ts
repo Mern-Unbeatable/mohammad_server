@@ -47,6 +47,7 @@ import type {
   MessageContent,
   MessageListQuery,
   RecipientsQuery,
+  UpdateGroupInput,
 } from "./messages.validators";
 
 /** Every whitespace-separated term must match the user's name or email. */
@@ -67,7 +68,7 @@ const userSearchWhere = (search?: string): Prisma.UserWhereInput => {
 const assertMembership = async (conversationId: string, userId: string) => {
   const participant = await prisma.conversationParticipant.findUnique({
     where: { conversationId_userId: { conversationId, userId } },
-    include: { conversation: { select: { isGroup: true, name: true } } },
+    include: { conversation: { select: { isGroup: true, name: true, avatarUrl: true } } },
   });
   if (!participant)
     throw new ForbiddenError("You are not a participant in this conversation");
@@ -570,18 +571,33 @@ export const messagesService = {
     return serializeMessage(updated, userId);
   },
 
-  async renameGroup(userId: string, conversationId: string, name: string) {
+  async updateGroup(userId: string, conversationId: string, input: UpdateGroupInput) {
     const owner = await assertGroupOwner(conversationId, userId);
-    if (owner.conversation.name === name) return this.getConversation(userId, conversationId);
+    const renamed = input.name !== undefined && input.name !== owner.conversation.name;
+    const photoChanged =
+      input.avatar !== undefined && input.avatar !== owner.conversation.avatarUrl;
+    if (!renamed && !photoChanged) return this.getConversation(userId, conversationId);
+
     await prisma.conversation.update({
       where: { id: conversationId },
-      data: { name },
+      data: {
+        ...(renamed ? { name: input.name } : {}),
+        ...(photoChanged ? { avatarUrl: input.avatar } : {}),
+      },
     });
     const names = await namesById([userId]);
-    await postSystemMessage(conversationId, userId, names.get(userId) ?? "", {
-      action: "renamed",
-      name,
-    });
+    const actorName = names.get(userId) ?? "";
+    if (renamed) {
+      await postSystemMessage(conversationId, userId, actorName, {
+        action: "renamed",
+        name: input.name!,
+      });
+    }
+    if (photoChanged) {
+      await postSystemMessage(conversationId, userId, actorName, {
+        action: input.avatar ? "photoChanged" : "photoRemoved",
+      });
+    }
     emitToUsers(await participantIdsOf(conversationId), "conversation:updated", {
       conversationId,
     });

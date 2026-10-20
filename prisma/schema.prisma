@@ -572,6 +572,8 @@ model Conversation {
   id        String   @id @default(uuid())
   isGroup   Boolean  @default(false)
   name      String?
+  /// Group photo; 1:1 conversations show the other member's avatar instead.
+  avatarUrl String?
   /// Sorted "userA:userB" key for 1:1 conversations; guarantees one thread per pair.
   directKey String?  @unique
   createdAt DateTime @default(now())
