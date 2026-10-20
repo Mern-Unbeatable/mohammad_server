@@ -21,6 +21,7 @@ const queryBoolean = z.preprocess((value) => {
 export const jobListQuerySchema = paginationQuerySchema.extend({
   level: z.enum(LEVELS).optional(),
   employmentType: z.enum(EMPLOYMENT).optional(),
+  workplaceType: z.enum(WORKPLACE).optional(),
   mine: queryBoolean.optional(),
   /** Only honoured with `mine`; the public list is always OPEN. */
   status: z.enum(STATUSES).optional(),

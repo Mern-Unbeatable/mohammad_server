@@ -29,12 +29,13 @@ export const adminMessagesController = {
     const data = await adminMessagesService.deleteMessage(
       req.params.id,
       req.params.messageId,
+      req.user!.id,
     );
     sendSuccess(res, { data });
   }),
 
   deleteConversation: asyncHandler(async (req: Request, res: Response) => {
-    const data = await adminMessagesService.deleteConversation(req.params.id);
+    const data = await adminMessagesService.deleteConversation(req.params.id, req.user!.id);
     sendSuccess(res, { data });
   }),
 };

@@ -1,9 +1,14 @@
-import { Prisma } from "@prisma/client";
+import { ModerationAction, Prisma } from "@prisma/client";
 import { prisma } from "@/infrastructure/prisma";
 import { NotFoundError } from "@/shared/errors/AppError";
 import { buildPaginationMeta } from "@/shared/http/apiResponse";
 import { toPrismaPagination } from "@/shared/http/pagination";
 import { emitToUsers } from "@/realtime/socket";
+import {
+  attachmentKeysInConversation,
+  attachmentKeysOf,
+  removeUnreferencedAttachments,
+} from "@/shared/chat/attachments";
 import {
   conversationInclude,
   ConversationWithRelations,
@@ -11,7 +16,14 @@ import {
   previewOf,
   serializeMessage,
   serializeParticipant,
-} from "@/modules/user/messages/messages.helpers";
+} from "@/shared/chat/helpers";
+import {
+  CONVERSATION_PAGE_ORDER,
+  MESSAGE_PAGE_ORDER,
+  conversationPageWhere,
+  nextConversationCursor,
+  olderMessagesWhere,
+} from "@/shared/chat/pagination";
 import type {
   AdminConversationListQuery,
   AdminMessageListQuery,
@@ -79,22 +91,28 @@ export const adminMessagesService = {
           }
         : {}),
     };
-    const { skip, take } = toPrismaPagination(query.page, query.pageSize);
+    const { skip } = toPrismaPagination(query.page, query.pageSize);
 
-    const [rows, total] = await prisma.$transaction([
+    const [found, total] = await prisma.$transaction([
       prisma.conversation.findMany({
-        where,
+        where: conversationPageWhere(where, query.cursor),
         include: moderationInclude,
-        orderBy: { updatedAt: "desc" },
-        skip,
-        take,
+        orderBy: CONVERSATION_PAGE_ORDER,
+        skip: query.cursor ? 0 : skip,
+        take: query.pageSize + 1,
       }),
       prisma.conversation.count({ where }),
     ]);
+    const hasMore = found.length > query.pageSize;
+    const rows = found.slice(0, query.pageSize);
 
     return {
       data: rows.map(serializeForModeration),
-      meta: buildPaginationMeta(query.page, query.pageSize, total),
+      meta: {
+        ...buildPaginationMeta(query.page, query.pageSize, total),
+        hasMore,
+        nextCursor: nextConversationCursor(rows, hasMore),
+      },
     };
   },
 
@@ -119,12 +137,9 @@ export const adminMessagesService = {
     if (!exists) throw new NotFoundError("Conversation not found");
 
     const rows = await prisma.message.findMany({
-      where: {
-        conversationId,
-        ...(query.before ? { createdAt: { lt: query.before } } : {}),
-      },
+      where: { conversationId, ...olderMessagesWhere(query) },
       include: messageInclude,
-      orderBy: { createdAt: "desc" },
+      orderBy: MESSAGE_PAGE_ORDER,
       take: query.pageSize + 1,
     });
     const hasMore = rows.length > query.pageSize;
@@ -138,13 +153,25 @@ export const adminMessagesService = {
     };
   },
 
-  async deleteMessage(conversationId: string, messageId: string) {
+  /** Removes one message and records who removed whose content (never the text itself). */
+  async deleteMessage(conversationId: string, messageId: string, actorId: string) {
     const message = await prisma.message.findFirst({
       where: { id: messageId, conversationId },
-      select: { id: true },
+      select: { id: true, senderId: true, attachments: true },
     });
     if (!message) throw new NotFoundError("Message not found");
-    await prisma.message.delete({ where: { id: messageId } });
+    await prisma.$transaction([
+      prisma.message.delete({ where: { id: messageId } }),
+      prisma.moderationLog.create({
+        data: {
+          actorId,
+          targetUserId: message.senderId,
+          action: ModerationAction.REMOVE_CONTENT,
+          note: `Removed chat message ${messageId} in conversation ${conversationId}`,
+        },
+      }),
+    ]);
+    await removeUnreferencedAttachments(attachmentKeysOf(message.attachments));
 
     emitToUsers(await participantIdsOf(conversationId), "message:deleted", {
       conversationId,
@@ -153,12 +180,27 @@ export const adminMessagesService = {
     return { conversationId, messageId, message: "Message deleted" };
   },
 
-  async deleteConversation(conversationId: string) {
-    const participants = await participantIdsOf(conversationId);
-    const deleted = await prisma.conversation.deleteMany({
+  /** Deletes a whole conversation; the log keeps ids and counts only. */
+  async deleteConversation(conversationId: string, actorId: string) {
+    const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
+      select: { id: true, _count: { select: { messages: true } } },
     });
-    if (deleted.count === 0) throw new NotFoundError("Conversation not found");
+    if (!conversation) throw new NotFoundError("Conversation not found");
+    const participants = await participantIdsOf(conversationId);
+    const keys = await attachmentKeysInConversation(conversationId);
+    await prisma.$transaction([
+      prisma.conversation.deleteMany({ where: { id: conversationId } }),
+      prisma.moderationLog.create({
+        data: {
+          actorId,
+          targetUserId: null,
+          action: ModerationAction.REMOVE_CONTENT,
+          note: `Deleted conversation ${conversationId} (${conversation._count.messages} messages, ${participants.length} participants)`,
+        },
+      }),
+    ]);
+    await removeUnreferencedAttachments(keys);
 
     emitToUsers(participants, "conversation:removed", { conversationId });
     return { conversationId, message: "Conversation deleted" };

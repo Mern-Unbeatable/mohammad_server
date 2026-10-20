@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { authenticate } from "@/middleware/authenticate";
 import { requireActiveUser } from "@/middleware/requireActiveUser";
+import { chatSendRateLimiter, uploadRateLimiter } from "@/middleware/rateLimit";
 import { validate } from "@/middleware/validate";
+import { chatAttachmentUploadRoutes } from "@/shared/chat/attachmentRoutes";
 import { messagesController } from "./messages.controller";
 import {
   addParticipantsSchema,
@@ -23,6 +25,8 @@ const router = Router();
 
 router.use(authenticate, requireActiveUser);
 
+router.use("/attachments", uploadRateLimiter, chatAttachmentUploadRoutes);
+
 router.get(
   "/",
   validate({ query: conversationListQuerySchema }),
@@ -42,11 +46,13 @@ router.get(
 );
 router.post(
   "/direct",
+  chatSendRateLimiter,
   validate({ body: startDirectSchema }),
   messagesController.startDirect,
 );
 router.post(
   "/group",
+  chatSendRateLimiter,
   validate({ body: createGroupSchema }),
   messagesController.createGroup,
 );
@@ -70,6 +76,7 @@ router.get(
 );
 router.post(
   "/:id/messages",
+  chatSendRateLimiter,
   validate({ params: conversationIdParamSchema, body: sendMessageSchema }),
   messagesController.sendMessage,
 );

@@ -5,6 +5,7 @@ import {
   UserStatus,
 } from "@prisma/client";
 import { prisma } from "@/infrastructure/prisma";
+import { disconnectUser } from "@/realtime/socket";
 import { NotFoundError } from "@/shared/errors/AppError";
 import {
   serializeProfile,
@@ -110,16 +111,26 @@ export const usersService = {
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundError("User not found");
 
+    const deactivating =
+      status === UserStatus.SUSPENDED || status === UserStatus.BANNED;
+
     const updated = await prisma.user.update({
       where: { id },
       data: {
         status,
-        ...(status === UserStatus.SUSPENDED || status === UserStatus.BANNED
-          ? { warnings: { increment: 0 } }
-          : {}),
+        ...(deactivating ? { warnings: { increment: 0 } } : {}),
       },
       include: userWithRelations,
     });
+
+    if (deactivating) {
+      // End existing sessions: no further refreshes, no live chat events.
+      await prisma.refreshToken.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      disconnectUser(id);
+    }
 
     await prisma.moderationLog.create({
       data: {

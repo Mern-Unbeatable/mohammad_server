@@ -5,6 +5,8 @@ dist/
 *.log
 
 coverage/
+private-uploads/
+uploads/.incoming/
 .DS_Store
 branch_structure.json
 temp_auto_push.bat

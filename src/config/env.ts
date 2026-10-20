@@ -91,6 +91,17 @@ export const env = {
       "MAX_UPLOAD_SIZE_MB",
     ),
     publicUrl: optional("PUBLIC_URL", "http://localhost:4000"),
+    /** Most files accepted in one multi-file request. */
+    maxFiles: toNumber(optional("MAX_UPLOAD_FILES", "12"), "MAX_UPLOAD_FILES"),
+    /** Chat attachments; never served statically, only through signed links. Must be persistent storage. */
+    privateDir: optional("PRIVATE_UPLOAD_DIR", "private-uploads"),
+    /** HMAC key for chat attachment links; falls back to a key derived from JWT_ACCESS_SECRET. */
+    signingSecret: optional("ATTACHMENT_URL_SECRET", ""),
+    /** Lifetime of a signed chat attachment link, in seconds (links are re-issued with each fetch). */
+    signedUrlTtlSeconds: toNumber(
+      optional("ATTACHMENT_URL_TTL_SECONDS", "21600"),
+      "ATTACHMENT_URL_TTL_SECONDS",
+    ),
   },
   rateLimit: {
     windowMs: toNumber(

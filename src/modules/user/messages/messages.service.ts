@@ -16,7 +16,21 @@ import { buildPaginationMeta } from "@/shared/http/apiResponse";
 import { toPrismaPagination } from "@/shared/http/pagination";
 import { emitToUsers } from "@/realtime/socket";
 import {
+  attachmentKeysInConversation,
+  attachmentKeysOf,
+  removeUnreferencedAttachments,
+  resolveOutgoingAttachments,
+} from "@/shared/chat/attachments";
+import {
+  CONVERSATION_PAGE_ORDER,
+  MESSAGE_PAGE_ORDER,
+  conversationPageWhere,
+  nextConversationCursor,
+  olderMessagesWhere,
+} from "@/shared/chat/pagination";
+import {
   buildDirectKey,
+  chatUserSelect,
   conversationInclude,
   displayNameOf,
   initialsOf,
@@ -27,7 +41,7 @@ import {
   subtitleOf,
   systemEventText,
   type SystemEvent,
-} from "./messages.helpers";
+} from "@/shared/chat/helpers";
 import type {
   ConversationListQuery,
   MessageContent,
@@ -71,6 +85,23 @@ const assertGroupOwner = async (conversationId: string, userId: string) => {
   return participant;
 };
 
+/** Caller must have checked membership. */
+const recordRead = async (userId: string, conversationId: string) => {
+  const lastReadAt = new Date();
+  await prisma.conversationParticipant.update({
+    where: { conversationId_userId: { conversationId, userId } },
+    data: { lastReadAt },
+  });
+  const participants = await participantIdsOf(conversationId);
+  // The reader is included so their other tabs/devices can refresh unread state.
+  emitToUsers(participants, "conversation:read", {
+    conversationId,
+    userId,
+    lastReadAt,
+  });
+  return { conversationId, lastReadAt };
+};
+
 const participantIdsOf = async (conversationId: string): Promise<string[]> => {
   const rows = await prisma.conversationParticipant.findMany({
     where: { conversationId },
@@ -94,7 +125,7 @@ const assertActiveUsers = async (ids: string[]) => {
 const namesById = async (ids: string[]): Promise<Map<string, string>> => {
   const users = await prisma.user.findMany({
     where: { id: { in: ids } },
-    include: { profile: true },
+    select: chatUserSelect,
   });
   return new Map(users.map((user) => [user.id, displayNameOf(user)]));
 };
@@ -201,18 +232,20 @@ export const messagesService = {
           }
         : {}),
     };
-    const { skip, take } = toPrismaPagination(query.page, query.pageSize);
+    const { skip } = toPrismaPagination(query.page, query.pageSize);
 
-    const [rows, total] = await prisma.$transaction([
+    const [found, total] = await prisma.$transaction([
       prisma.conversation.findMany({
-        where,
+        where: conversationPageWhere(where, query.cursor),
         include: conversationInclude,
-        orderBy: { updatedAt: "desc" },
-        skip,
-        take,
+        orderBy: CONVERSATION_PAGE_ORDER,
+        skip: query.cursor ? 0 : skip,
+        take: query.pageSize + 1,
       }),
       prisma.conversation.count({ where }),
     ]);
+    const hasMore = found.length > query.pageSize;
+    const rows = found.slice(0, query.pageSize);
 
     const unread = await unreadCountsFor(
       userId,
@@ -223,7 +256,11 @@ export const messagesService = {
       data: rows.map((row) =>
         serializeConversation(row, userId, unread.get(row.id) ?? 0),
       ),
-      meta: buildPaginationMeta(query.page, query.pageSize, total),
+      meta: {
+        ...buildPaginationMeta(query.page, query.pageSize, total),
+        hasMore,
+        nextCursor: nextConversationCursor(rows, hasMore),
+      },
     };
   },
 
@@ -270,12 +307,9 @@ export const messagesService = {
     await assertMembership(conversationId, userId);
 
     const rows = await prisma.message.findMany({
-      where: {
-        conversationId,
-        ...(query.before ? { createdAt: { lt: query.before } } : {}),
-      },
+      where: { conversationId, ...olderMessagesWhere(query) },
       include: messageInclude,
-      orderBy: { createdAt: "desc" },
+      orderBy: MESSAGE_PAGE_ORDER,
       take: query.pageSize + 1,
     });
 
@@ -283,7 +317,7 @@ export const messagesService = {
     const page = rows.slice(0, query.pageSize).reverse();
 
     // Opening the latest page counts as reading the conversation.
-    if (!query.before) await this.markRead(userId, conversationId);
+    if (!query.before) await recordRead(userId, conversationId);
 
     return {
       data: page.map((message) => serializeMessage(message, userId)),
@@ -293,19 +327,7 @@ export const messagesService = {
 
   async markRead(userId: string, conversationId: string) {
     await assertMembership(conversationId, userId);
-    const lastReadAt = new Date();
-    await prisma.conversationParticipant.update({
-      where: { conversationId_userId: { conversationId, userId } },
-      data: { lastReadAt },
-    });
-    const participants = await participantIdsOf(conversationId);
-    // The reader is included so their other tabs/devices can refresh unread state.
-    emitToUsers(participants, "conversation:read", {
-      conversationId,
-      userId,
-      lastReadAt,
-    });
-    return { conversationId, lastReadAt };
+    return recordRead(userId, conversationId);
   },
 
   /** Reuses the pair's 1:1 conversation (or creates it), then posts a message. */
@@ -405,6 +427,7 @@ export const messagesService = {
   ) {
     await assertMembership(conversationId, userId);
     if (content.listingId) await assertShareableListing(content.listingId, userId);
+    const attachments = await resolveOutgoingAttachments(userId, content.attachments);
 
     const [message] = await prisma.$transaction([
       prisma.message.create({
@@ -412,7 +435,7 @@ export const messagesService = {
           conversationId,
           senderId: userId,
           body: content.body,
-          attachments: content.attachments as unknown as Prisma.InputJsonValue,
+          attachments: attachments as unknown as Prisma.InputJsonValue,
           listingId: content.listingId ?? null,
         },
         include: messageInclude,
@@ -448,7 +471,9 @@ export const messagesService = {
     });
 
     if (remaining.length === 0) {
+      const keys = await attachmentKeysInConversation(conversationId);
       await prisma.conversation.delete({ where: { id: conversationId } });
+      await removeUnreferencedAttachments(keys);
       return { conversationId, message: "Left conversation" };
     }
 
@@ -499,6 +524,7 @@ export const messagesService = {
       throw new ForbiddenError("You can only delete your own messages");
     }
     await prisma.message.delete({ where: { id: messageId } });
+    await removeUnreferencedAttachments(attachmentKeysOf(message.attachments));
 
     emitToUsers(await participantIdsOf(conversationId), "message:deleted", {
       conversationId,

@@ -3,6 +3,8 @@ import { StatusCodes } from "http-status-codes";
 import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 import { JsonWebTokenError, TokenExpiredError } from "jsonwebtoken";
+import { MulterError } from "multer";
+import { env } from "@/config/env";
 import { AppError } from "@/shared/errors/AppError";
 import { logger } from "@/config/logger";
 
@@ -20,6 +22,21 @@ const normalize = (err: unknown): NormalizedError => {
       code: err.code,
       message: err.message,
       details: err.details,
+    };
+  }
+
+  if (err instanceof MulterError) {
+    const tooLarge = err.code === "LIMIT_FILE_SIZE";
+    return {
+      statusCode: tooLarge ? StatusCodes.REQUEST_TOO_LONG : StatusCodes.BAD_REQUEST,
+      code: tooLarge ? "FILE_TOO_LARGE" : "BAD_REQUEST",
+      message: tooLarge
+        ? `Files must be ${env.upload.maxSizeMb} MB or smaller`
+        : err.code === "LIMIT_FILE_COUNT"
+          ? `Upload at most ${env.upload.maxFiles} files at once`
+          : err.code === "LIMIT_UNEXPECTED_FILE"
+            ? "Too many files, or an unexpected file field"
+            : "Invalid upload request",
     };
   }
 

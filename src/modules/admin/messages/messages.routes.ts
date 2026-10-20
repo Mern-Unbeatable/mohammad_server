@@ -2,6 +2,7 @@ import { Router } from "express";
 import { Role } from "@prisma/client";
 import { authenticate } from "@/middleware/authenticate";
 import { authorize } from "@/middleware/authorize";
+import { requireActiveUser } from "@/middleware/requireActiveUser";
 import { validate } from "@/middleware/validate";
 import { adminMessagesController } from "./messages.controller";
 import {
@@ -13,7 +14,7 @@ import {
 
 const router = Router();
 
-router.use(authenticate, authorize(Role.ADMIN));
+router.use(authenticate, authorize(Role.ADMIN), requireActiveUser);
 
 router.get(
   "/",

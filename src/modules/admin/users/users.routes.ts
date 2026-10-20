@@ -2,6 +2,7 @@ import { Router } from "express";
 import { Role } from "@prisma/client";
 import { authenticate } from "@/middleware/authenticate";
 import { authorize } from "@/middleware/authorize";
+import { requireActiveUser } from "@/middleware/requireActiveUser";
 import { validate } from "@/middleware/validate";
 import { usersController } from "./users.controller";
 import {
@@ -14,9 +15,12 @@ const router = Router();
 
 router.use(authenticate);
 
+/** Admin-only routes also require an ACTIVE account (a suspended admin cannot reactivate themselves). */
+const activeAdmin = [authorize(Role.ADMIN), requireActiveUser];
+
 router.get(
   "/",
-  authorize(Role.ADMIN),
+  ...activeAdmin,
   validate({ query: adminUserListQuerySchema }),
   usersController.list,
 );
@@ -29,13 +33,13 @@ router.get(
 );
 router.get(
   "/:id/content",
-  authorize(Role.ADMIN),
+  ...activeAdmin,
   validate({ params: idParamSchema }),
   usersController.getContent,
 );
 router.patch(
   "/:id/status",
-  authorize(Role.ADMIN),
+  ...activeAdmin,
   validate({ params: idParamSchema, body: updateUserStatusSchema }),
   usersController.updateStatus,
 );

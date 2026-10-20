@@ -9,8 +9,11 @@ import { logger } from "@/config/logger";
 import { apiRouter } from "@/routes";
 import { errorHandler } from "@/middleware/errorHandler";
 import { notFoundHandler } from "@/middleware/notFound";
-import { globalRateLimiter } from "@/middleware/rateLimit";
+import { attachmentDownloadRateLimiter, globalRateLimiter } from "@/middleware/rateLimit";
 import { subscriptionsController } from "@/modules/user/subscriptions/subscriptions.controller";
+import { setUploadSecurityHeaders } from "@/shared/files/serveHeaders";
+import { ATTACHMENT_ROUTE_BASE } from "@/shared/chat/attachments";
+import { chatAttachmentDownloadRoutes } from "@/shared/chat/attachmentRoutes";
 
 export const createApp = (): Application => {
   const app = express();
@@ -73,11 +76,19 @@ export const createApp = (): Application => {
     });
   });
 
-  // Serve uploaded files statically.
+  // Serve uploaded files statically. Older uploads were named from the
+  // client's extension, so nothing here may be rendered as active content.
   app.use(
     `/${env.upload.dir}`,
-    express.static(path.resolve(process.cwd(), env.upload.dir)),
+    express.static(path.resolve(process.cwd(), env.upload.dir), {
+      dotfiles: "ignore",
+      index: false,
+      redirect: false,
+      setHeaders: (res, filePath) => setUploadSecurityHeaders(res, filePath),
+    }),
   );
+
+  app.use(ATTACHMENT_ROUTE_BASE, attachmentDownloadRateLimiter, chatAttachmentDownloadRoutes);
 
   app.use(env.apiPrefix, globalRateLimiter, apiRouter);
 

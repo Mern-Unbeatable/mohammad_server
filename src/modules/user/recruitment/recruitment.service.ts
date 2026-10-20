@@ -86,6 +86,7 @@ export const recruitmentService = {
       ...listScope(userId, role, query),
       ...(query.level ? { level: query.level } : {}),
       ...(query.employmentType ? { employmentType: query.employmentType } : {}),
+      ...(query.workplaceType ? { workplaceType: query.workplaceType } : {}),
       ...(since ? { createdAt: { gte: since } } : {}),
       ...(query.search
         ? {

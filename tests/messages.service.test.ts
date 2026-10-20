@@ -19,6 +19,8 @@ const { prismaMock, emitToUsers } = vi.hoisted(() => ({
     },
     message: {
       findFirst: vi.fn(),
+      findMany: vi.fn(async () => []),
+      count: vi.fn(async () => 0),
       delete: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
@@ -257,6 +259,34 @@ describe("messagesService chat notifications", () => {
       "notification:updated",
       expect.anything(),
     );
+  });
+
+  it("checks membership once when the latest page marks the thread read", async () => {
+    prismaMock.conversationParticipant.findUnique.mockResolvedValue(membership());
+    prismaMock.conversationParticipant.findMany.mockResolvedValue([{ userId: "me" }]);
+
+    await messagesService.getMessages("me", "c1", { pageSize: 30 } as never);
+
+    expect(prismaMock.conversationParticipant.findUnique).toHaveBeenCalledTimes(1);
+    expect(prismaMock.conversationParticipant.update).toHaveBeenCalledWith({
+      where: { conversationId_userId: { conversationId: "c1", userId: "me" } },
+      data: { lastReadAt: expect.any(Date) },
+    });
+    expect(emitToUsers).toHaveBeenCalledWith(
+      ["me"],
+      "conversation:read",
+      expect.objectContaining({ conversationId: "c1", userId: "me" }),
+    );
+  });
+
+  it("still refuses to read a thread the caller is not in", async () => {
+    prismaMock.conversationParticipant.findUnique.mockResolvedValue(null);
+
+    await expect(
+      messagesService.getMessages("me", "c1", { pageSize: 30 } as never),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(prismaMock.message.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.conversationParticipant.update).not.toHaveBeenCalled();
   });
 });
 

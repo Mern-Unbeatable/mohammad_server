@@ -5,15 +5,22 @@ import { env } from "@/config/env";
 import { logger } from "@/config/logger";
 import { onNotificationsCreated, prisma } from "@/infrastructure/prisma";
 import { verifyAccessToken } from "@/shared/utils/jwt";
+import { createTypingThrottle } from "./typingThrottle";
 
 interface SocketUser {
   id: string;
   role: Role;
+  /** Access-token expiry (seconds since epoch) presented at handshake. */
+  tokenExp: number | null;
 }
 
 type AuthedSocket = Socket & { data: { user: SocketUser } };
 
 let io: Server | null = null;
+let sweepTimer: NodeJS.Timeout | null = null;
+
+/** How often open sockets are re-checked against account status and token expiry. */
+export const SESSION_SWEEP_MS = 60_000;
 
 /**
  * Presence is tracked in memory per process. Running several API instances
@@ -55,6 +62,51 @@ export const emitToUsers = (
   io.to(Array.from(new Set(userIds)).map(userRoom)).emit(event, payload);
 };
 
+/**
+ * Ends every open socket of `userId` (e.g. after a suspension or ban) so it
+ * stops receiving events. A `session:revoked` notice precedes the disconnect;
+ * clients must not reconnect after it.
+ */
+export const disconnectUser = (userId: string): void => {
+  if (!io) return;
+  const room = io.in(userRoom(userId));
+  room.emit("session:revoked", {});
+  room.disconnectSockets();
+};
+
+/**
+ * Re-validates long-lived sockets: inactive accounts are dropped with
+ * `session:revoked`; sockets whose access token has expired get
+ * `session:expired` so the client refreshes its token and reconnects.
+ */
+export const revalidateSessions = async (now = Date.now()): Promise<void> => {
+  if (!io) return;
+  const sockets = await io.fetchSockets();
+  if (sockets.length === 0) return;
+
+  const ids = Array.from(
+    new Set(sockets.map((socket) => (socket.data as { user: SocketUser }).user.id)),
+  );
+  const users = await prisma.user.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, status: true },
+  });
+  const active = new Set(
+    users.filter((user) => user.status === UserStatus.ACTIVE).map((user) => user.id),
+  );
+
+  for (const socket of sockets) {
+    const { id, tokenExp } = (socket.data as { user: SocketUser }).user;
+    if (!active.has(id)) {
+      socket.emit("session:revoked", {});
+      socket.disconnect();
+    } else if (tokenExp !== null && tokenExp * 1000 <= now) {
+      socket.emit("session:expired", {});
+      socket.disconnect();
+    }
+  }
+};
+
 export const initRealtime = (httpServer: HttpServer): Server => {
   io = new Server(httpServer, {
     cors: {
@@ -85,7 +137,12 @@ export const initRealtime = (httpServer: HttpServer): Server => {
         next(new Error("FORBIDDEN"));
         return;
       }
-      (socket as AuthedSocket).data.user = { id: user.id, role: user.role };
+      const exp = (payload as { exp?: unknown }).exp;
+      (socket as AuthedSocket).data.user = {
+        id: user.id,
+        role: user.role,
+        tokenExp: typeof exp === "number" ? exp : null,
+      };
       next();
     } catch {
       next(new Error("UNAUTHENTICATED"));
@@ -120,14 +177,17 @@ export const initRealtime = (httpServer: HttpServer): Server => {
       }
     });
 
-    // Relays "typing" to the other participants; the client throttles, so this
-    // runs at most every few seconds per typing user.
+    // Relays "typing" to the other participants. Throttled here as well as
+    // on the client, before the membership lookup hits the database.
+    const allowTyping = createTypingThrottle();
     socket.on("typing", async (payload: unknown) => {
       const { conversationId, typing } = (payload ?? {}) as {
         conversationId?: unknown;
         typing?: unknown;
       };
       if (typeof conversationId !== "string" || !conversationId) return;
+      if (conversationId.length > 64) return;
+      if (!allowTyping(conversationId, typing === true)) return;
       try {
         const participants = await prisma.conversationParticipant.findMany({
           where: { conversationId },
@@ -158,10 +218,19 @@ export const initRealtime = (httpServer: HttpServer): Server => {
     });
   });
 
+  sweepTimer = setInterval(() => {
+    revalidateSessions().catch((err) =>
+      logger.warn({ err }, "Socket session revalidation failed"),
+    );
+  }, SESSION_SWEEP_MS);
+  sweepTimer.unref();
+
   return io;
 };
 
 export const closeRealtime = async (): Promise<void> => {
+  if (sweepTimer) clearInterval(sweepTimer);
+  sweepTimer = null;
   if (!io) return;
   await io.close();
   io = null;

@@ -1,11 +1,15 @@
 import { z } from "zod";
-import { isOwnUploadUrl } from "./messages.helpers";
+import { isAttachmentKey } from "@/shared/chat/attachments";
+import { cursorParam } from "@/shared/http/cursor";
+import { isOwnUploadUrl } from "@/shared/chat/helpers";
 
 export const conversationListQuerySchema = z.object({
   type: z.enum(["direct", "group"]).optional(),
   search: z.string().trim().max(200).optional(),
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().max(100).default(30),
+  /** `meta.nextCursor` from the previous page; takes precedence over `page`. */
+  cursor: cursorParam.optional(),
 });
 
 export const recipientsQuerySchema = z.object({
@@ -15,16 +19,27 @@ export const recipientsQuerySchema = z.object({
   pageSize: z.coerce.number().int().positive().max(100).default(50),
 });
 
-export const attachmentSchema = z.object({
-  url: z
-    .string()
-    .url()
-    .max(2000)
-    .refine(isOwnUploadUrl, "Attachments must be uploaded through /uploads"),
-  name: z.string().trim().min(1).max(255),
-  mimeType: z.string().trim().min(1).max(150),
-  size: z.coerce.number().int().nonnegative(),
-});
+const attachmentName = z.string().trim().min(1).max(255);
+
+/**
+ * `{ key, name }` from `POST /messages/attachments`. The `{ url, name }` form
+ * (public /uploads files) is still accepted from older clients. Type and size
+ * are read from the stored file, so any client-sent values are ignored.
+ */
+export const attachmentSchema = z.union([
+  z.object({
+    key: z.string().max(200).refine(isAttachmentKey, "Invalid attachment reference"),
+    name: attachmentName,
+  }),
+  z.object({
+    url: z
+      .string()
+      .url()
+      .max(2000)
+      .refine(isOwnUploadUrl, "Attachments must be uploaded through /uploads"),
+    name: attachmentName,
+  }),
+]);
 
 /** Marketplace listing the message is about. */
 const listingIdSchema = z.string().uuid().optional();
@@ -90,6 +105,8 @@ export const participantParamSchema = z.object({
 
 export const messageListQuerySchema = z.object({
   before: z.coerce.date().optional(),
+  /** Id of the oldest loaded message; with `before` forms an exact (createdAt, id) cursor. */
+  beforeId: z.string().uuid().optional(),
   pageSize: z.coerce.number().int().positive().max(100).default(30),
 });
 

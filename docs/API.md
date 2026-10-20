@@ -126,7 +126,7 @@ Categories: `CHROMATOGRAPHY`, `SPECTROSCOPY`, `INCUBATION`, `CENTRIFUGATION`, `W
 
 | Method | Path                | Auth        | Description                                                  |
 | ------ | ------------------- | ----------- | ------------------------------------------------------------ |
-| GET    | `/`                 | Bearer      | List jobs (`level`,`employmentType`,`since`,`mine`,`search`) |
+| GET    | `/`                 | Bearer      | List jobs (`level`,`employmentType`,`workplaceType`,`since`,`mine`,`search`) |
 | POST   | `/`                 | Bearer      | Create job                                                   |
 | GET    | `/:id`              | Bearer      | Job detail                                                   |
 | PATCH  | `/:id`              | Owner/Admin | Update job                                                   |
@@ -134,7 +134,7 @@ Categories: `CHROMATOGRAPHY`, `SPECTROSCOPY`, `INCUBATION`, `CENTRIFUGATION`, `W
 | POST   | `/:id/apply`        | Bearer      | Apply `{ coverLetter? }`                                     |
 | GET    | `/:id/applications` | Owner/Admin | List applicants                                              |
 
-`employmentType`: `FULL_TIME`,`PART_TIME`,`CONTRACT`,`INTERNSHIP`. `level`: `ENTRY_LEVEL`,`MID_LEVEL`,`SENIOR`. `since`: `7d`,`30d`,`90d`.
+`employmentType`: `FULL_TIME`,`PART_TIME`,`CONTRACT`,`INTERNSHIP`. `workplaceType`: `ON_SITE`,`REMOTE`,`HYBRID`. `level`: `ENTRY_LEVEL`,`MID_LEVEL`,`SENIOR`. `since`: `7d`,`30d`,`90d`.
 
 ---
 

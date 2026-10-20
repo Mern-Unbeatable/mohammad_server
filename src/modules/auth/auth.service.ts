@@ -212,6 +212,16 @@ export const authService = {
       data: { revokedAt: new Date() },
     });
 
+    // Same rule as login: suspended or banned accounts get no new session.
+    if (user.status === "BANNED") {
+      throw new ForbiddenError("This account has been banned");
+    }
+    if (user.status === "SUSPENDED") {
+      throw new ForbiddenError("This account is currently suspended", {
+        accountStatus: "SUSPENDED",
+      });
+    }
+
     return issueTokens(user);
   },
 
