@@ -197,7 +197,7 @@ describe("messagesService permissions", () => {
       membership({ conversation: { isGroup: true, name: "Team" } }),
     );
     await expect(
-      messagesService.renameGroup("me", "c1", "New name"),
+      messagesService.updateGroup("me", "c1", { name: "New name" }),
     ).rejects.toMatchObject({ statusCode: 403 });
     await expect(
       messagesService.removeParticipant("me", "c1", "other"),
@@ -209,7 +209,7 @@ describe("messagesService permissions", () => {
       membership({ role: ConversationRole.OWNER }),
     );
     await expect(
-      messagesService.renameGroup("me", "c1", "Name"),
+      messagesService.updateGroup("me", "c1", { name: "Name" }),
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 });
@@ -451,13 +451,39 @@ describe("messagesService group activity notices", () => {
     prismaMock.conversationParticipant.findMany.mockResolvedValue([{ userId: "me" }]);
     prismaMock.user.findMany.mockResolvedValue([person("me", "Nayem")]);
 
-    await messagesService.renameGroup("me", "g1", "Team");
+    await messagesService.updateGroup("me", "g1", { name: "Team" });
     expect(systemCreate()).toBeUndefined();
 
-    await messagesService.renameGroup("me", "g1", "Mofasa");
+    await messagesService.updateGroup("me", "g1", { name: "Mofasa" });
     expect(systemCreate()).toMatchObject({
       body: 'Nayem Lab renamed the group to "Mofasa"',
       event: { action: "renamed", name: "Mofasa" },
+    });
+  });
+
+  it("posts group photo changes and removals", async () => {
+    prismaMock.conversationParticipant.findUnique.mockResolvedValue(ownerOf("Team"));
+    prismaMock.conversationParticipant.findMany.mockResolvedValue([{ userId: "me" }]);
+    prismaMock.user.findMany.mockResolvedValue([person("me", "Nayem")]);
+
+    await messagesService.updateGroup("me", "g1", { avatar: "http://localhost/uploads/a.png" });
+    expect(prismaMock.conversation.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { avatarUrl: "http://localhost/uploads/a.png" } }),
+    );
+    expect(systemCreate()).toMatchObject({
+      body: "Nayem Lab changed the group photo",
+      event: { action: "photoChanged" },
+    });
+
+    prismaMock.message.create.mockClear();
+    prismaMock.conversationParticipant.findUnique.mockResolvedValue({
+      ...ownerOf("Team"),
+      conversation: { isGroup: true, name: "Team", avatarUrl: "http://localhost/uploads/a.png" },
+    });
+    await messagesService.updateGroup("me", "g1", { avatar: null });
+    expect(systemCreate()).toMatchObject({
+      body: "Nayem Lab removed the group photo",
+      event: { action: "photoRemoved" },
     });
   });
 

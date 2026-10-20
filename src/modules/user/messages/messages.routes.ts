@@ -16,9 +16,9 @@ import {
   messageListQuerySchema,
   participantParamSchema,
   recipientsQuerySchema,
-  renameGroupSchema,
   sendMessageSchema,
   startDirectSchema,
+  updateGroupSchema,
 } from "./messages.validators";
 
 const router = Router();
@@ -63,8 +63,8 @@ router.get(
 );
 router.patch(
   "/:id",
-  validate({ params: conversationIdParamSchema, body: renameGroupSchema }),
-  messagesController.renameGroup,
+  validate({ params: conversationIdParamSchema, body: updateGroupSchema }),
+  messagesController.updateGroup,
 );
 router.get(
   "/:id/messages",

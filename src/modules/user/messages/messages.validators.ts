@@ -81,9 +81,25 @@ export const editMessageSchema = z.object({
   body: z.string().trim().max(5000),
 });
 
-export const renameGroupSchema = z.object({
-  name: z.string().trim().min(1).max(160),
-});
+/** `avatar: null` removes the group photo. */
+export const updateGroupSchema = z
+  .object({
+    name: z.string().trim().min(1).max(160).optional(),
+    avatar: z
+      .string()
+      .url()
+      .max(2000)
+      .refine(isOwnUploadUrl, "Group photos must be uploaded through /uploads")
+      .refine((url) => /\.(png|jpe?g|gif|webp)$/i.test(url), "Group photo must be an image")
+      .nullable()
+      .optional(),
+  })
+  .refine((value) => value.name !== undefined || value.avatar !== undefined, {
+    message: "Nothing to update",
+    path: ["name"],
+  });
+
+export type UpdateGroupInput = z.infer<typeof updateGroupSchema>;
 
 export const addParticipantsSchema = z.object({
   participantIds: z.array(z.string().uuid()).min(1).max(256),

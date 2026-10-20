@@ -148,7 +148,9 @@ export const serializeConversation = (
       : primary
         ? initialsOf(primary)
         : "?",
-    avatar: conversation.isGroup ? null : (primary?.profile?.avatarUrl ?? null),
+    avatar: conversation.isGroup
+      ? (conversation.avatarUrl ?? null)
+      : (primary?.profile?.avatarUrl ?? null),
     otherUserId: conversation.isGroup ? null : (primary?.id ?? null),
     otherUserRole: conversation.isGroup ? null : (primary?.role ?? null),
     preview: previewOf(lastMessage),
@@ -186,7 +188,7 @@ export const serializeMessageListing = (listing: MessageWithRelations["listing"]
 export type SystemEvent =
   | { action: "created"; name: string; targetIds: string[]; targetNames: string[] }
   | { action: "added" | "removed"; targetIds: string[]; targetNames: string[] }
-  | { action: "left" }
+  | { action: "left" | "photoChanged" | "photoRemoved" }
   | { action: "renamed"; name: string };
 
 /** "Anna", "Anna and Ben", "Anna, Ben and Cara", "Anna, Ben and 3 others". */
@@ -214,6 +216,10 @@ export const systemEventText = (actorName: string, event: SystemEvent): string =
       return `${actorName} left the group`;
     case "renamed":
       return `${actorName} renamed the group to "${event.name}"`;
+    case "photoChanged":
+      return `${actorName} changed the group photo`;
+    case "photoRemoved":
+      return `${actorName} removed the group photo`;
   }
 };
 
