@@ -117,6 +117,10 @@ export const reactionSchema = z.object({
     }),
 });
 
+export const reactionListQuerySchema = paginationQuerySchema.extend({
+  type: z.enum(REACTION_TYPES).optional(),
+});
+
 export const postIdParamSchema = z.object({ id: z.string().uuid() });
 export const commentParamSchema = z.object({
   id: z.string().uuid(),

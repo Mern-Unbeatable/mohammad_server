@@ -8,6 +8,7 @@ import {
   createPostSchema,
   feedListQuerySchema,
   postIdParamSchema,
+  reactionListQuerySchema,
   reactionSchema,
   repostSchema,
   updateCommentSchema,
@@ -57,6 +58,11 @@ router.post(
   feedController.likeComment,
 );
 
+router.get(
+  "/:id/reactions",
+  validate({ params: postIdParamSchema, query: reactionListQuerySchema }),
+  feedController.listReactions,
+);
 router.post(
   "/:id/reactions",
   validate({ params: postIdParamSchema, body: reactionSchema }),

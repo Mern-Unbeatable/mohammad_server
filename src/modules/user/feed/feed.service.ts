@@ -16,6 +16,9 @@ const TYPE_MAP: Record<string, FeedPostType> = {
   suppliers: FeedPostType.SUPPLIERS,
 };
 
+/** Reactors returned per post for the avatar stack next to the reaction count. */
+const RECENT_REACTORS_LIMIT = 3;
+
 const getCommentInclude = (viewerId?: string) =>
   ({
     author: { include: { profile: true } },
@@ -39,6 +42,20 @@ const getPostInclude = (viewerId?: string) =>
       include: getCommentInclude(viewerId),
     },
     sharedPost: { include: { author: { include: { profile: true } } } },
+    reactions: {
+      orderBy: { createdAt: "desc" as const },
+      take: RECENT_REACTORS_LIMIT,
+      select: {
+        user: {
+          select: {
+            id: true,
+            profile: {
+              select: { firstName: true, lastName: true, avatarUrl: true, initials: true },
+            },
+          },
+        },
+      },
+    },
     _count: { select: { reactions: true, comments: true, reposts: true } },
   }) satisfies Prisma.FeedPostInclude;
 
@@ -205,6 +222,14 @@ const serializePost = (
     comments: post._count.comments,
     shares: post._count.reposts,
   },
+  recentReactors: post.reactions.map(({ user }) => ({
+    id: user.id,
+    name: user.profile
+      ? `${user.profile.firstName} ${user.profile.lastName}`.trim()
+      : null,
+    avatar: user.profile?.avatarUrl ?? null,
+    initials: user.profile?.initials ?? null,
+  })),
   comments: buildCommentTree(post.comments.map(serializeCommentFlat)),
 });
 
@@ -668,6 +693,47 @@ export const feedService = {
       liked,
       isLiked: liked,
       likeCount,
+    };
+  },
+
+  /** Who reacted to a post, newest first; `type` narrows to one reaction. */
+  async listReactions(
+    postId: string,
+    query: { page: number; pageSize: number; type?: ReactionType },
+  ) {
+    const post = await prisma.feedPost.findUnique({
+      where: { id: postId },
+      select: { id: true },
+    });
+    if (!post) throw new NotFoundError("Post not found");
+
+    const { skip, take } = toPrismaPagination(query.page, query.pageSize);
+    const where: Prisma.FeedReactionWhereInput = {
+      postId,
+      ...(query.type ? { type: query.type } : {}),
+    };
+
+    const [rows, total, countsByPost] = await Promise.all([
+      prisma.feedReaction.findMany({
+        where,
+        include: { user: { include: { profile: true } } },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip,
+        take,
+      }),
+      prisma.feedReaction.count({ where }),
+      buildReactionCountsByPost([postId]),
+    ]);
+
+    return {
+      data: rows.map((row) => ({
+        id: row.id,
+        type: row.type,
+        createdAt: row.createdAt,
+        user: serializeAuthor(row.user),
+      })),
+      meta: buildPaginationMeta(query.page, query.pageSize, total),
+      reactionCounts: countsByPost.get(postId) ?? emptyReactionCounts(),
     };
   },
 
