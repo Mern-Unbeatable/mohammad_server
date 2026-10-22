@@ -94,6 +94,14 @@ export const feedController = {
     sendSuccess(res, { data });
   }),
 
+  listReactions: asyncHandler(async (req: Request, res: Response) => {
+    const result = await feedService.listReactions(req.params.id, req.query as never);
+    sendSuccess(res, {
+      data: { reactions: result.data, reactionCounts: result.reactionCounts },
+      meta: result.meta,
+    });
+  }),
+
   react: asyncHandler(async (req: Request, res: Response) => {
     const data = await feedService.react(
       req.params.id,
