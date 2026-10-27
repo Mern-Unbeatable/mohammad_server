@@ -90,7 +90,8 @@ export const env = {
       optional("MAX_UPLOAD_SIZE_MB", "50"),
       "MAX_UPLOAD_SIZE_MB",
     ),
-    publicUrl: optional("PUBLIC_URL", "http://localhost:4000"),
+    /** Public origin of this API; uploaded file URLs are built from it and stored in the database. */
+    publicUrl: optional("PUBLIC_URL", "http://localhost:4000").replace(/\/+$/, ""),
     /** Most files accepted in one multi-file request. */
     maxFiles: toNumber(optional("MAX_UPLOAD_FILES", "12"), "MAX_UPLOAD_FILES"),
     /** Chat attachments; never served statically, only through signed links. Must be persistent storage. */

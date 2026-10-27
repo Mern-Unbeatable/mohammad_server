@@ -4,6 +4,7 @@ import { logger } from "@/config/logger";
 import { connectDatabase, disconnectDatabase } from "@/infrastructure/prisma";
 import { verifyMailer } from "@/infrastructure/mailer";
 import { closeRealtime, initRealtime } from "@/realtime/socket";
+import { publicUploadRoot } from "@/middleware/upload";
 
 const bootstrap = async (): Promise<void> => {
   await connectDatabase();
@@ -12,6 +13,12 @@ const bootstrap = async (): Promise<void> => {
   const server = app.listen(env.port, () => {
     logger.info(`Server listening on port ${env.port} (${env.nodeEnv})`);
     logger.info(`API base: ${env.apiPrefix}`);
+    logger.info(`Uploads: ${env.upload.publicUrl}/${env.upload.dir} -> ${publicUploadRoot}`);
+    if (env.isProduction && !/^https:\/\/(?!localhost|127\.)/.test(env.upload.publicUrl)) {
+      logger.warn(
+        `PUBLIC_URL is "${env.upload.publicUrl}". Uploaded images will get unreachable or mixed-content links; set it to this API's public https origin.`,
+      );
+    }
   });
   initRealtime(server);
   void verifyMailer();
