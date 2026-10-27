@@ -13,7 +13,7 @@ export default defineConfig({
       DATABASE_URL: "postgresql://test:test@localhost:5432/test",
       JWT_ACCESS_SECRET: "test-access-secret",
       JWT_REFRESH_SECRET: "test-refresh-secret",
-      PUBLIC_URL: "http://localhost:4000",
+      PUBLIC_URL: "https://labunity.be",
       UPLOAD_DIR: "uploads",
     },
   },
