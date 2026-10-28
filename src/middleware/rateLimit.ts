@@ -41,6 +41,9 @@ export const globalRateLimiter = buildLimiter(
 /** Stricter limiter for authentication endpoints to slow brute-force attempts. */
 export const authRateLimiter = buildLimiter(20, 15 * 60 * 1000);
 
+/** Public contact form: 5 messages per hour per IP. */
+export const contactRateLimiter = buildLimiter(5, 60 * 60 * 1000);
+
 /** New chat messages, direct chats and groups: 30 per minute per account. */
 export const chatSendRateLimiter = buildLimiter(30, 60 * 1000, byUser);
 
