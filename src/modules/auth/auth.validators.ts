@@ -31,6 +31,7 @@ export const registerSchema = z
     jobTitle: z.string().trim().max(120).optional(),
     company: z.string().trim().max(160).optional(),
     country: z.string().trim().max(80).optional(),
+    city: z.string().trim().max(80).optional(),
     phone: z.string().trim().max(40).optional(),
     professionalInfo: z.string().trim().max(2000).optional(),
     acceptedTerms: z.literal(true, {

@@ -19,6 +19,7 @@ import {
   verifyRefreshToken,
 } from "@/shared/utils/jwt";
 import { buildInitials } from "@/shared/utils/text";
+import { composeLocation } from "@/shared/utils/location";
 import {
   serializeUser,
   userWithRelations,
@@ -125,6 +126,7 @@ export const authService = {
             title: input.jobTitle,
             company: input.company,
             country: input.country,
+            location: composeLocation(input.city, input.country) || null,
             phone: input.phone,
             about: input.professionalInfo,
             initials: buildInitials(input.firstName, input.lastName),
