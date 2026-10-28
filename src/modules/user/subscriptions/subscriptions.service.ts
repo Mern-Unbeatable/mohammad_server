@@ -244,6 +244,7 @@ export const subscriptionsService = {
         subscribeLabel: `Subscribe — €${(p.price / 100).toFixed(2)} / ${p.period}`,
       })),
       features: MEMBERSHIP_FEATURES,
+      trialDays: DEFAULT_TRIAL_DAYS,
       paymentConfigured: isPaymentConfigured(),
       publishableKey: env.stripe.publishableKey || null,
     };

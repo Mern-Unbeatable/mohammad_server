@@ -7,7 +7,8 @@ export const updateProfileSchema = z.object({
   title: z.string().trim().max(120).optional(),
   company: z.string().trim().max(160).optional(),
   country: z.string().trim().max(80).optional(),
-  location: z.string().trim().max(120).optional(),
+  // Stored as Profile.location ("City, Country"), composed with `country` on save.
+  city: z.string().trim().max(80).optional(),
   phone: z.string().trim().max(40).optional(),
   about: z.string().trim().max(4000).optional(),
   aboutExtended: z.string().trim().max(8000).optional(),

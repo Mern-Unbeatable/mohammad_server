@@ -21,11 +21,11 @@ export const PLAN_CATALOGUE = [
 ] as const;
 
 export const MEMBERSHIP_FEATURES = [
-  "Full professional profile & photo",
+  "Full professional profile setup",
   "Unlimited connections",
   "Professional feed — posts, questions, information",
   "Private & group messaging",
-  "Audio calls with contacts",
+  // "Audio calls with contacts",
   "Lab Marketplace — buy, sell & exchange equipment",
   "Recruitment — browse & apply for jobs",
   "General — events, training, news & documents",

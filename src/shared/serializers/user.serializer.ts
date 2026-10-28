@@ -1,5 +1,6 @@
 import { Prisma, Profile, Subscription, User } from "@prisma/client";
 import { deriveSubscriptionState } from "@/modules/user/subscriptions/subscriptionLifecycle";
+import { resolveProfileLocation } from "@/shared/utils/location";
 
 type UserWithRelations = User & {
   profile?: Profile | null;
@@ -29,7 +30,7 @@ export const serializeProfile = (profile: Profile) => ({
   title: profile.title,
   company: profile.company,
   country: profile.country,
-  location: profile.location,
+  ...resolveProfileLocation(profile.location, profile.country),
   phone: profile.phone,
   about: profile.about,
   aboutExtended: profile.aboutExtended,

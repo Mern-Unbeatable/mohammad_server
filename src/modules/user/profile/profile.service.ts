@@ -6,6 +6,7 @@ import {
 } from "@/shared/errors/AppError";
 import { hashPassword, verifyPassword } from "@/shared/utils/password";
 import { buildInitials } from "@/shared/utils/text";
+import { composeLocation, resolveProfileLocation } from "@/shared/utils/location";
 import {
   serializeUser,
   userWithRelations,
@@ -26,15 +27,24 @@ export const profileService = {
     const profile = await prisma.profile.findUnique({ where: { userId } });
     if (!profile) throw new NotFoundError("Profile not found");
 
-    const firstName = input.firstName ?? profile.firstName;
-    const lastName = input.lastName ?? profile.lastName;
+    const { city, ...fields } = input;
+    const firstName = fields.firstName ?? profile.firstName;
+    const lastName = fields.lastName ?? profile.lastName;
+    const locationChanged = city !== undefined || fields.country !== undefined;
+    const location = locationChanged
+      ? composeLocation(
+          city ?? resolveProfileLocation(profile.location, profile.country).city,
+          fields.country ?? profile.country,
+        ) || null
+      : undefined;
 
     const updated = await prisma.user.update({
       where: { id: userId },
       data: {
         profile: {
           update: {
-            ...input,
+            ...fields,
+            ...(locationChanged ? { location } : {}),
             initials: buildInitials(firstName, lastName),
           },
         },
