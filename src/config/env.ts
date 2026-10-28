@@ -84,6 +84,8 @@ export const env = {
     pass: optionalAny(["SMTP_PASSWORD", "SMTP_PASS"], ""),
     from: optionalAny(["SMTP_FROM", "MAIL_FROM"], "Lab Unity <no-reply@labunity.com>"),
   },
+  /** Inbox that receives messages from the public contact form. */
+  contactInbox: optional("CONTACT_INBOX_EMAIL", "info@labunity.be"),
   upload: {
     dir: optional("UPLOAD_DIR", "uploads"),
     maxSizeMb: toNumber(

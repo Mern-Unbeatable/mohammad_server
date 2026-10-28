@@ -7,6 +7,7 @@ export interface MailMessage {
   subject: string;
   text: string;
   html?: string;
+  replyTo?: string;
   /** Inline images are referenced from the HTML as `cid:<cid>`. */
   attachments?: SendMailOptions["attachments"];
 }

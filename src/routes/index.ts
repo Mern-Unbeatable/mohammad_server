@@ -16,6 +16,7 @@ import { routes as searchRoutes } from "@/modules/user/search";
 import { routes as subscriptionsRoutes } from "@/modules/user/subscriptions";
 import { routes as adminRoutes } from "@/modules/admin";
 import { uploadsRoutes } from "@/modules/uploads/uploads.routes";
+import { routes as contactRoutes } from "@/modules/contact";
 
 export const apiRouter = Router();
 
@@ -68,3 +69,4 @@ apiRouter.use("/subscriptions", subscriptionsRoutes);
 apiRouter.use("/search", searchRoutes);
 apiRouter.use("/admin", adminRoutes);
 apiRouter.use("/uploads", uploadsRoutes);
+apiRouter.use("/contact", contactRoutes);
