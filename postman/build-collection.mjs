@@ -204,7 +204,7 @@ const adminAuth = bearerAuth("adminToken");
 
 const adminFolder = folder(
   "Admin",
-  "Admin panel surface. Folder auth uses `{{adminToken}}` (ADMIN role).\n\nSources: `server/src/modules/admin/*`, shared domains for moderation lists, `web/src/api/httpEndpoints.js` ADMIN.*, `docs/ADMIN_REPORT.md`.",
+  "Admin panel surface. Folder auth uses `{{adminToken}}` (ADMIN role).\n\nSources: `server/src/modules/admin/*`, shared domains for moderation lists, `web/src/api/httpEndpoints.js` ADMIN.*, `docs/audits/features/admin-panel.md`.",
   [
     folder(
       "Dashboard",
