@@ -12,6 +12,17 @@ const { prismaMock } = vi.hoisted(() => ({
       delete: vi.fn(),
       count: vi.fn(),
     },
+    subscription: {
+      findUnique: vi.fn(async () => ({
+        status: "TRIAL",
+        plan: "FREE",
+        trialDaysTotal: 90,
+        startDate: new Date(),
+        createdAt: new Date(),
+        renewalDate: null,
+        stripeSubscriptionId: null,
+      })),
+    },
   },
 }));
 

@@ -6,7 +6,20 @@ const { messagesServiceMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/infrastructure/prisma", () => ({
-  prisma: { user: { findUnique: vi.fn(async () => ({ status: "ACTIVE" })) } },
+  prisma: {
+    user: { findUnique: vi.fn(async () => ({ status: "ACTIVE" })) },
+    subscription: {
+      findUnique: vi.fn(async () => ({
+        status: "TRIAL",
+        plan: "FREE",
+        trialDaysTotal: 90,
+        startDate: new Date(),
+        createdAt: new Date(),
+        renewalDate: null,
+        stripeSubscriptionId: null,
+      })),
+    },
+  },
   onNotificationsCreated: vi.fn(),
 }));
 vi.mock("@/modules/user/messages/messages.service", () => ({ messagesService: messagesServiceMock }));

@@ -17,6 +17,7 @@ const { workDir, originalCwd, prismaMock, emitToUsers } = vi.hoisted(() => {
     emitToUsers: vi.fn(),
     prismaMock: {
       user: { findUnique: vi.fn() },
+      subscription: { findUnique: vi.fn() },
       message: {
         findFirst: vi.fn(),
         findMany: vi.fn(),
@@ -65,6 +66,15 @@ afterAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   prismaMock.user.findUnique.mockResolvedValue({ status: "ACTIVE" });
+  prismaMock.subscription.findUnique.mockResolvedValue({
+    status: "TRIAL",
+    plan: "FREE",
+    trialDaysTotal: 90,
+    startDate: new Date(),
+    createdAt: new Date(),
+    renewalDate: null,
+    stripeSubscriptionId: null,
+  });
   prismaMock.message.count.mockResolvedValue(0);
   prismaMock.message.findMany.mockResolvedValue([]);
   prismaMock.conversationParticipant.findMany.mockResolvedValue([]);
@@ -132,6 +142,15 @@ describe("GET /chat-attachments (signed links)", () => {
 
   beforeAll(async () => {
     prismaMock.user.findUnique.mockResolvedValue({ status: "ACTIVE" });
+    prismaMock.subscription.findUnique.mockResolvedValue({
+      status: "TRIAL",
+      plan: "FREE",
+      trialDaysTotal: 90,
+      startDate: new Date(),
+      createdAt: new Date(),
+      renewalDate: null,
+      stripeSubscriptionId: null,
+    });
     key = (await uploadAs(ALICE, fixtures.png(), "diagram.png", "image/png")).data.key;
   });
 

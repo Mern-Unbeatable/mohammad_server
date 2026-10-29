@@ -12,6 +12,17 @@ const { prismaMock, statuses, adminMessages, userMessages, adminUsers } = vi.hoi
           statuses.has(where.id) ? { status: statuses.get(where.id) } : null,
         ),
       },
+      subscription: {
+        findUnique: vi.fn(async () => ({
+          status: "TRIAL",
+          plan: "FREE",
+          trialDaysTotal: 90,
+          startDate: new Date(),
+          createdAt: new Date(),
+          renewalDate: null,
+          stripeSubscriptionId: null,
+        })),
+      },
     },
     adminMessages: {
       listConversations: vi.fn(async () => ({ data: [], meta: {} })),

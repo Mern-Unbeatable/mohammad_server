@@ -2,7 +2,7 @@ import Stripe from "stripe";
 import { SubscriptionPlan, SubscriptionStatus } from "@prisma/client";
 import { prisma } from "@/infrastructure/prisma";
 import { env } from "@/config/env";
-import { BadRequestError, NotFoundError } from "@/shared/errors/AppError";
+import { BadRequestError, ConflictError, NotFoundError } from "@/shared/errors/AppError";
 import { serializeSubscription } from "@/shared/serializers/user.serializer";
 import { logger } from "@/config/logger";
 import {
@@ -26,6 +26,9 @@ type SubscribeResult = {
     sessionId: string;
   };
 };
+
+/** How long a single in-flight Checkout reservation is held before it lapses. */
+const CHECKOUT_RESERVATION_MS = 30 * 60 * 1000;
 
 async function loadSubscription(userId: string) {
   const subscription = await prisma.subscription.findUnique({
@@ -67,9 +70,24 @@ async function syncLocalLifecycle(userId: string) {
 async function ensureStripeCustomer(userId: string): Promise<string> {
   const user = await loadUser(userId);
   const existing = user.subscription?.stripeCustomerId;
-  if (existing) return existing;
-
   const stripe = getStripe();
+
+  // Reuse the stored customer only if it still exists in the configured Stripe
+  // account. Ids created under a different key/account (test vs live, or a
+  // rotated key) are stale and must be recreated, otherwise Checkout fails
+  // with "No such customer".
+  if (existing) {
+    try {
+      const customer = await stripe.customers.retrieve(existing);
+      if (!(customer as { deleted?: boolean }).deleted) return existing;
+    } catch (err) {
+      logger.warn(
+        { userId, customerId: existing, err },
+        "Stored Stripe customer not found in this account — recreating",
+      );
+    }
+  }
+
   const name = user.profile
     ? `${user.profile.firstName} ${user.profile.lastName}`.trim()
     : undefined;
@@ -155,27 +173,32 @@ export async function applyStripeSubscription(
   const catalogue = catalogueForPlan(plan);
 
   let status: SubscriptionStatus = local.status;
-  if (
-    stripeSub.status === "active" ||
-    stripeSub.status === "trialing" ||
-    stripeSub.status === "past_due"
-  ) {
+  if (stripeSub.status === "active" || stripeSub.status === "trialing") {
     status = stripeSub.cancel_at_period_end
       ? SubscriptionStatus.CANCELLED
       : SubscriptionStatus.ACTIVE;
+  } else if (stripeSub.status === "past_due") {
+    // Overdue renewal — restrict premium access until payment recovers.
+    status = SubscriptionStatus.PAST_DUE;
   } else if (
     stripeSub.status === "canceled" ||
-    stripeSub.status === "unpaid" ||
     stripeSub.status === "incomplete_expired"
   ) {
     status =
       periodEnd && periodEnd.getTime() > Date.now()
         ? SubscriptionStatus.CANCELLED
         : SubscriptionStatus.EXPIRED;
+  } else if (stripeSub.status === "unpaid") {
+    // Stripe exhausted retries — treat as ended; access denied.
+    status = SubscriptionStatus.EXPIRED;
   } else if (stripeSub.status === "incomplete") {
-    // Payment not confirmed yet — do not grant ACTIVE.
+    // Initial payment not confirmed yet — do not grant access; preserve trial.
     status = local.status;
   }
+
+  // A real Stripe subscription means any in-flight Checkout has concluded.
+  const checkoutResolved =
+    stripeSub.status !== "incomplete" ? null : local.checkoutSessionExpiresAt;
 
   return prisma.subscription.update({
     where: { id: local.id },
@@ -193,6 +216,7 @@ export async function applyStripeSubscription(
       paymentMethod: "Stripe",
       trialDaysLeft:
         status === SubscriptionStatus.ACTIVE ? 0 : local.trialDaysLeft,
+      checkoutSessionExpiresAt: checkoutResolved,
       stripeCustomerId: customerId ?? local.stripeCustomerId,
       stripeSubscriptionId: stripeSub.id,
       stripePriceId: priceId ?? local.stripePriceId,
@@ -232,6 +256,36 @@ export async function applyCheckoutSession(session: Stripe.Checkout.Session) {
   return null;
 }
 
+/** Apply a single verified Stripe event to local state. Must be idempotent. */
+async function processStripeEvent(event: Stripe.Event, stripe: Stripe) {
+  switch (event.type) {
+    case "checkout.session.completed": {
+      await applyCheckoutSession(event.data.object as Stripe.Checkout.Session);
+      break;
+    }
+    case "customer.subscription.created":
+    case "customer.subscription.updated":
+    case "customer.subscription.deleted": {
+      await applyStripeSubscription(event.data.object as Stripe.Subscription);
+      break;
+    }
+    case "invoice.payment_failed":
+    case "invoice.paid": {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subRef = invoice.parent?.subscription_details?.subscription ?? null;
+      if (subRef) {
+        const subId = typeof subRef === "string" ? subRef : subRef.id;
+        // Re-fetch current subscription state rather than trusting event order.
+        const stripeSub = await stripe.subscriptions.retrieve(subId);
+        await applyStripeSubscription(stripeSub);
+      }
+      break;
+    }
+    default:
+      logger.debug({ type: event.type }, "Unhandled Stripe webhook event");
+  }
+}
+
 export const subscriptionsService = {
   getPlans() {
     return {
@@ -257,6 +311,8 @@ export const subscriptionsService = {
 
   /**
    * Start Stripe Checkout. Never grants ACTIVE until webhook/confirm succeeds.
+   * Concurrency-safe: reserves a single in-flight checkout per user and reuses
+   * an already-open session for repeated requests.
    */
   async subscribe(
     userId: string,
@@ -281,39 +337,113 @@ export const subscriptionsService = {
       !derived.cancelAtPeriodEnd &&
       current.stripeSubscriptionId
     ) {
-      throw new BadRequestError("You are already subscribed to this plan");
+      throw new ConflictError("You are already subscribed to this plan", {
+        code: "SUBSCRIPTION_ALREADY_ACTIVE",
+      });
+    }
+
+    const stripe = getStripe();
+    const now = new Date();
+
+    // Fast path: reuse an existing still-open Checkout session so repeated
+    // clicks never create a second Stripe subscription.
+    if (
+      current.stripeCheckoutSessionId &&
+      current.checkoutSessionExpiresAt &&
+      current.checkoutSessionExpiresAt.getTime() > now.getTime()
+    ) {
+      try {
+        const existing = await stripe.checkout.sessions.retrieve(
+          current.stripeCheckoutSessionId,
+        );
+        if (existing.status === "open" && existing.url) {
+          return {
+            subscription: serializeSubscription(current),
+            payment: {
+              required: true,
+              mode: "checkout",
+              checkoutUrl: existing.url,
+              sessionId: existing.id,
+            },
+          };
+        }
+      } catch (err) {
+        // Stored session id is unknown to this Stripe account (stale/rotated
+        // key). Fall through to release the reservation and start fresh.
+        logger.warn(
+          { userId, sessionId: current.stripeCheckoutSessionId, err },
+          "Stored Checkout session not found — starting a new one",
+        );
+      }
+      // Reservation held a closed or stale session — release it before re-locking.
+      await prisma.subscription.updateMany({
+        where: {
+          userId,
+          stripeCheckoutSessionId: current.stripeCheckoutSessionId,
+        },
+        data: { checkoutSessionExpiresAt: null },
+      });
+    }
+
+    // Atomically reserve the checkout window. Only one concurrent request wins.
+    const reservationExpiry = new Date(now.getTime() + CHECKOUT_RESERVATION_MS);
+    const reserved = await prisma.subscription.updateMany({
+      where: {
+        userId,
+        OR: [
+          { checkoutSessionExpiresAt: null },
+          { checkoutSessionExpiresAt: { lte: now } },
+        ],
+      },
+      data: { checkoutSessionExpiresAt: reservationExpiry },
+    });
+    if (reserved.count === 0) {
+      throw new ConflictError("A checkout is already in progress", {
+        code: "CHECKOUT_IN_PROGRESS",
+      });
     }
 
     const customerId = await ensureStripeCustomer(userId);
     const priceId = getStripePriceId(
       plan === SubscriptionPlan.YEARLY ? "YEARLY" : "MONTHLY",
     );
-    const stripe = getStripe();
 
     const successUrl = `${env.stripe.clientUrl.replace(/\/$/, "")}/subscription?checkout=success&session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${env.stripe.clientUrl.replace(/\/$/, "")}/subscription?checkout=cancelled`;
+    const planKey = plan === SubscriptionPlan.YEARLY ? "YEARLY" : "MONTHLY";
 
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      customer: customerId,
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      client_reference_id: userId,
-      metadata: {
-        userId,
-        plan: plan === SubscriptionPlan.YEARLY ? "YEARLY" : "MONTHLY",
-      },
-      subscription_data: {
-        metadata: {
-          userId,
-          plan: plan === SubscriptionPlan.YEARLY ? "YEARLY" : "MONTHLY",
+    let session: Stripe.Checkout.Session;
+    try {
+      session = await stripe.checkout.sessions.create(
+        {
+          mode: "subscription",
+          customer: customerId,
+          line_items: [{ price: priceId, quantity: 1 }],
+          success_url: successUrl,
+          cancel_url: cancelUrl,
+          client_reference_id: userId,
+          metadata: { userId, plan: planKey },
+          subscription_data: { metadata: { userId, plan: planKey } },
+          allow_promotion_codes: true,
         },
-      },
-      allow_promotion_codes: true,
-    });
+        // Scope idempotency to this reservation so transparent retries of the
+        // create call never yield a second Checkout session.
+        { idempotencyKey: `checkout_${userId}_${reservationExpiry.getTime()}` },
+      );
+    } catch (err) {
+      // Release the reservation so the user can retry.
+      await prisma.subscription.updateMany({
+        where: { userId, checkoutSessionExpiresAt: reservationExpiry },
+        data: { checkoutSessionExpiresAt: null },
+      });
+      throw err;
+    }
 
     if (!session.url) {
+      await prisma.subscription.updateMany({
+        where: { userId, checkoutSessionExpiresAt: reservationExpiry },
+        data: { checkoutSessionExpiresAt: null },
+      });
       throw new BadRequestError("Stripe did not return a Checkout URL");
     }
 
@@ -386,6 +516,7 @@ export const subscriptionsService = {
     if (
       derived.status !== SubscriptionStatus.ACTIVE &&
       derived.status !== SubscriptionStatus.TRIAL &&
+      derived.status !== SubscriptionStatus.PAST_DUE &&
       !(
         derived.status === SubscriptionStatus.CANCELLED &&
         derived.cancelAtPeriodEnd
@@ -461,33 +592,64 @@ export const subscriptionsService = {
       throw new BadRequestError("Invalid Stripe webhook signature");
     }
 
-    switch (event.type) {
-      case "checkout.session.completed": {
-        await applyCheckoutSession(event.data.object as Stripe.Checkout.Session);
-        break;
+    // Idempotency: never process the same Stripe event id twice.
+    const existing = await prisma.stripeWebhookEvent.findUnique({
+      where: { stripeEventId: event.id },
+    });
+    if (existing?.processingStatus === "PROCESSED") {
+      return { received: true, duplicate: true };
+    }
+
+    if (!existing) {
+      try {
+        await prisma.stripeWebhookEvent.create({
+          data: {
+            stripeEventId: event.id,
+            eventType: event.type,
+            processingStatus: "PROCESSING",
+            attemptCount: 1,
+            stripeCreatedAt: event.created
+              ? new Date(event.created * 1000)
+              : null,
+          },
+        });
+      } catch {
+        // Unique-constraint race: another worker is handling this event.
+        return { received: true, duplicate: true };
       }
-      case "customer.subscription.created":
-      case "customer.subscription.updated":
-      case "customer.subscription.deleted": {
-        await applyStripeSubscription(
-          event.data.object as Stripe.Subscription,
-        );
-        break;
-      }
-      case "invoice.payment_failed":
-      case "invoice.paid": {
-        const invoice = event.data.object as Stripe.Invoice;
-        const subRef =
-          invoice.parent?.subscription_details?.subscription ?? null;
-        if (subRef) {
-          const subId = typeof subRef === "string" ? subRef : subRef.id;
-          const stripeSub = await stripe.subscriptions.retrieve(subId);
-          await applyStripeSubscription(stripeSub);
-        }
-        break;
-      }
-      default:
-        logger.debug({ type: event.type }, "Unhandled Stripe webhook event");
+    } else {
+      await prisma.stripeWebhookEvent.update({
+        where: { stripeEventId: event.id },
+        data: {
+          processingStatus: "PROCESSING",
+          attemptCount: { increment: 1 },
+        },
+      });
+    }
+
+    try {
+      await processStripeEvent(event, stripe);
+      await prisma.stripeWebhookEvent.update({
+        where: { stripeEventId: event.id },
+        data: {
+          processingStatus: "PROCESSED",
+          processedAt: new Date(),
+          lastError: null,
+        },
+      });
+    } catch (err) {
+      await prisma.stripeWebhookEvent.update({
+        where: { stripeEventId: event.id },
+        data: {
+          processingStatus: "FAILED",
+          lastError: String(err instanceof Error ? err.message : err).slice(
+            0,
+            500,
+          ),
+        },
+      });
+      // Surface the failure so Stripe retries delivery.
+      throw err;
     }
 
     return { received: true };

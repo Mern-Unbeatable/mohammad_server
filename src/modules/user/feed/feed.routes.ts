@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "@/middleware/authenticate";
+import { requireEntitlement } from "@/middleware/requireEntitlement";
 import { validate } from "@/middleware/validate";
 import { feedController } from "./feed.controller";
 import {
@@ -17,7 +18,7 @@ import {
 
 const router = Router();
 
-router.use(authenticate);
+router.use(authenticate, requireEntitlement);
 
 router.get("/", validate({ query: feedListQuerySchema }), feedController.list);
 router.post("/", validate({ body: createPostSchema }), feedController.create);

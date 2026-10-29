@@ -90,6 +90,19 @@ export function deriveSubscriptionState(
     };
   }
 
+  if (subscription.status === SubscriptionStatus.PAST_DUE) {
+    // Renewal payment is overdue/unpaid. Premium access is restricted until
+    // the provider confirms the subscription is paid/active again.
+    return {
+      status: SubscriptionStatus.PAST_DUE,
+      trialDaysLeft: 0,
+      trialDaysTotal,
+      isActive: false,
+      accessEndsAt: renewal,
+      cancelAtPeriodEnd: false,
+    };
+  }
+
   if (subscription.status === SubscriptionStatus.CANCELLED) {
     // Access continues until the prepaid period ends.
     if (renewal && !renewalPassed) {

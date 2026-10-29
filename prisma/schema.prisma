@@ -44,6 +44,7 @@ enum SubscriptionPlan {
 enum SubscriptionStatus {
   TRIAL
   ACTIVE
+  PAST_DUE
   CANCELLED
   EXPIRED
 }
@@ -299,12 +300,29 @@ model Subscription {
   stripeSubscriptionId    String?            @unique
   stripePriceId           String?
   stripeCheckoutSessionId String?
+  /// Reservation window for an in-flight Checkout session; prevents duplicate checkouts.
+  checkoutSessionExpiresAt DateTime?
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
 
   @@index([plan])
   @@index([status])
   @@index([stripeCustomerId])
+}
+
+/// Ledger of received Stripe webhook events; guarantees idempotent processing.
+model StripeWebhookEvent {
+  id              String   @id @default(uuid())
+  stripeEventId   String   @unique
+  eventType       String
+  processingStatus String  @default("RECEIVED")
+  attemptCount    Int      @default(0)
+  lastError       String?
+  stripeCreatedAt DateTime?
+  receivedAt      DateTime @default(now())
+  processedAt     DateTime?
+
+  @@index([eventType])
 }
 
 model RefreshToken {

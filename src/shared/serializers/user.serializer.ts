@@ -42,6 +42,13 @@ export const serializeProfile = (profile: Profile) => ({
 
 export const serializeSubscription = (subscription: Subscription) => {
   const derived = deriveSubscriptionState(subscription);
+  const checkoutExpiresAt = (
+    subscription as { checkoutSessionExpiresAt?: Date | null }
+  ).checkoutSessionExpiresAt;
+  const checkoutPending =
+    Boolean(subscription.stripeCheckoutSessionId) &&
+    Boolean(checkoutExpiresAt && checkoutExpiresAt.getTime() > Date.now()) &&
+    derived.status !== "ACTIVE";
 
   return {
     plan: subscription.plan,
@@ -57,6 +64,8 @@ export const serializeSubscription = (subscription: Subscription) => {
     isActive: derived.isActive,
     accessEndsAt: derived.accessEndsAt,
     cancelAtPeriodEnd: derived.cancelAtPeriodEnd,
+    checkoutPending,
+    accessLevel: derived.isActive ? "premium" : "none",
   };
 };
 
