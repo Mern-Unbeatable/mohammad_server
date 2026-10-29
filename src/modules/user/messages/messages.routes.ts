@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authenticate } from "@/middleware/authenticate";
 import { requireActiveUser } from "@/middleware/requireActiveUser";
+import { requireEntitlement } from "@/middleware/requireEntitlement";
 import { chatSendRateLimiter, uploadRateLimiter } from "@/middleware/rateLimit";
 import { validate } from "@/middleware/validate";
 import { chatAttachmentUploadRoutes } from "@/shared/chat/attachmentRoutes";
@@ -23,7 +24,7 @@ import {
 
 const router = Router();
 
-router.use(authenticate, requireActiveUser);
+router.use(authenticate, requireActiveUser, requireEntitlement);
 
 router.use("/attachments", uploadRateLimiter, chatAttachmentUploadRoutes);
 

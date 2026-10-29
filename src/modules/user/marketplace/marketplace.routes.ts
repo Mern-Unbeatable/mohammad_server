@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "@/middleware/authenticate";
+import { requireEntitlement } from "@/middleware/requireEntitlement";
 import { validate } from "@/middleware/validate";
 import { marketplaceController } from "./marketplace.controller";
 import {
@@ -12,7 +13,7 @@ import {
 
 const router = Router();
 
-router.use(authenticate);
+router.use(authenticate, requireEntitlement);
 
 router.get(
   "/",
