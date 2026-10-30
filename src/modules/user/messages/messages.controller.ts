@@ -53,6 +53,19 @@ export const messagesController = {
     sendSuccess(res, { data });
   }),
 
+  listCalls: asyncHandler(async (req: Request, res: Response) => {
+    const result = await messagesService.listCalls(
+      req.user!.id,
+      req.params.id,
+      req.query as never,
+    );
+    sendSuccess(res, { data: result.data, meta: result.meta });
+  }),
+
+  iceServers: asyncHandler(async (_req: Request, res: Response) => {
+    sendSuccess(res, { data: messagesService.iceServers() });
+  }),
+
   startDirect: asyncHandler(async (req: Request, res: Response) => {
     const data = await messagesService.startDirect(
       req.user!.id,

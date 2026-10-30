@@ -246,6 +246,8 @@ model User {
   notifications       Notification[]
   messages            Message[]
   conversationParts   ConversationParticipant[]
+  callsMade           Call[]                    @relation("CallsMade")
+  callsReceived       Call[]                    @relation("CallsReceived")
   sentConnections     Connection[]              @relation("ConnectionRequester")
   receivedConnections Connection[]              @relation("ConnectionAddressee")
   reportsMade         Report[]                  @relation("ReportReporter")
@@ -524,6 +526,12 @@ model JobApplication {
   applicantId String
   applicant   User                 @relation(fields: [applicantId], references: [id], onDelete: Cascade)
   coverLetter String?
+  /// Private CV/résumé reference (`<applicantId>/<file>`); served only through signed links.
+  cvKey       String?
+  /// Original CV file name shown to the applicant and job owner.
+  cvName      String?
+  cvMime      String?
+  cvSize      Int?
   status      JobApplicationStatus @default(APPLIED)
   /// When the job owner first viewed this application; null = new.
   ownerSeenAt DateTime?
@@ -599,6 +607,7 @@ model Conversation {
 
   participants ConversationParticipant[]
   messages     Message[]
+  calls        Call[]
 
   @@index([updatedAt])
 }
@@ -644,6 +653,41 @@ model Message {
 enum MessageType {
   TEXT
   SYSTEM
+  CALL
+}
+
+enum CallStatus {
+  RINGING
+  ANSWERED
+  MISSED
+  REJECTED
+  CANCELLED
+  COMPLETED
+  FAILED
+}
+
+/// One-to-one voice call. Authoritative metadata store for call history;
+/// a CALL-type Message mirrors the outcome inside the conversation thread.
+model Call {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  callerId       String
+  caller         User         @relation("CallsMade", fields: [callerId], references: [id], onDelete: Cascade)
+  calleeId       String
+  callee         User         @relation("CallsReceived", fields: [calleeId], references: [id], onDelete: Cascade)
+  status         CallStatus   @default(RINGING)
+  startedAt      DateTime     @default(now())
+  /// Set when the callee accepts and media negotiation begins.
+  answeredAt     DateTime?
+  endedAt        DateTime?
+  /// Connected talk time in seconds; 0 for missed/rejected/cancelled calls.
+  durationSec    Int          @default(0)
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([callerId])
+  @@index([calleeId])
 }
 
 // ===================================================================

@@ -6,6 +6,7 @@ import { logger } from "@/config/logger";
 import { onNotificationsCreated, prisma } from "@/infrastructure/prisma";
 import { verifyAccessToken } from "@/shared/utils/jwt";
 import { createTypingThrottle } from "./typingThrottle";
+import { handleCallParticipantGone, registerCallHandlers } from "./calls";
 
 interface SocketUser {
   id: string;
@@ -163,6 +164,8 @@ export const initRealtime = (httpServer: HttpServer): Server => {
       );
     }
 
+    registerCallHandlers(socket, userId);
+
     socket.on("presence:query", async (userIds: unknown, ack: unknown) => {
       if (typeof ack !== "function") return;
       const requested = Array.isArray(userIds)
@@ -212,6 +215,9 @@ export const initRealtime = (httpServer: HttpServer): Server => {
         return;
       }
       connectionCounts.delete(userId);
+      handleCallParticipantGone(userId).catch((err) =>
+        logger.warn({ err }, "Failed to clean up call on disconnect"),
+      );
       broadcastPresence(userId, false).catch((err) =>
         logger.warn({ err }, "Failed to broadcast presence"),
       );

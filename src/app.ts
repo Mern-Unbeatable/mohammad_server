@@ -14,6 +14,8 @@ import { subscriptionsController } from "@/modules/user/subscriptions/subscripti
 import { setUploadSecurityHeaders } from "@/shared/files/serveHeaders";
 import { ATTACHMENT_ROUTE_BASE } from "@/shared/chat/attachments";
 import { chatAttachmentDownloadRoutes } from "@/shared/chat/attachmentRoutes";
+import { CV_ROUTE_BASE } from "@/shared/cv/cvStorage";
+import { cvDownloadRoutes } from "@/shared/cv/cvRoutes";
 
 export const createApp = (): Application => {
   const app = express();
@@ -89,6 +91,8 @@ export const createApp = (): Application => {
   );
 
   app.use(ATTACHMENT_ROUTE_BASE, attachmentDownloadRateLimiter, chatAttachmentDownloadRoutes);
+
+  app.use(CV_ROUTE_BASE, attachmentDownloadRateLimiter, cvDownloadRoutes);
 
   app.use(env.apiPrefix, globalRateLimiter, apiRouter);
 

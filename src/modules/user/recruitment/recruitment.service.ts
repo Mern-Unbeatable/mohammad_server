@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { JobApplicationStatus, JobStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/infrastructure/prisma";
 import {
@@ -8,10 +9,26 @@ import {
 import { buildPaginationMeta } from "@/shared/http/apiResponse";
 import { toPrismaPagination } from "@/shared/http/pagination";
 import { serializeProfile } from "@/shared/serializers/user.serializer";
+import { cvPath, isCvKey, serializeCv } from "@/shared/cv/cvStorage";
+import { logger } from "@/config/logger";
 import type {
   JobListQuery,
   MyApplicationsQuery,
 } from "./recruitment.validators";
+
+interface CvInput {
+  key: string;
+  name: string;
+  mime: string;
+  size: number;
+}
+
+const removeCvFile = (key: string | null | undefined) => {
+  if (!key || !isCvKey(key)) return;
+  fs.promises
+    .unlink(cvPath(key))
+    .catch((err) => logger.warn({ err, key }, "Failed to remove old CV"));
+};
 
 /** Applications the job owner can see; cancelled ones are the applicant's history only. */
 const activeApplication = {
@@ -191,7 +208,12 @@ export const recruitmentService = {
     await prisma.job.delete({ where: { id } });
   },
 
-  async apply(jobId: string, applicantId: string, coverLetter?: string) {
+  async apply(
+    jobId: string,
+    applicantId: string,
+    input: { coverLetter?: string; cv: CvInput },
+  ) {
+    const { coverLetter, cv } = input;
     const job = await prisma.job.findUnique({ where: { id: jobId } });
     if (!job) throw new NotFoundError("Job not found");
     if (job.status !== JobStatus.OPEN)
@@ -206,19 +228,32 @@ export const recruitmentService = {
     if (existing && existing.status !== JobApplicationStatus.CANCELLED)
       throw new ConflictError("You have already applied to this job");
 
+    const cvData = {
+      cvKey: cv.key,
+      cvName: cv.name,
+      cvMime: cv.mime,
+      cvSize: cv.size,
+    };
+
     const application = existing
       ? await prisma.jobApplication.update({
           where: { id: existing.id },
           data: {
             status: JobApplicationStatus.APPLIED,
             coverLetter: coverLetter ?? null,
+            ...cvData,
             ownerSeenAt: null,
             createdAt: new Date(),
           },
         })
       : await prisma.jobApplication.create({
-          data: { jobId, applicantId, coverLetter },
+          data: { jobId, applicantId, coverLetter, ...cvData },
         });
+
+    // A re-application replaces any CV from the earlier (cancelled) attempt.
+    if (existing?.cvKey && existing.cvKey !== cv.key) {
+      removeCvFile(existing.cvKey);
+    }
 
     await prisma.notification.create({
       data: {
@@ -283,6 +318,7 @@ export const recruitmentService = {
       id: a.id,
       status: a.status,
       coverLetter: a.coverLetter,
+      cv: serializeCv(a.id, a),
       appliedAt: a.createdAt,
       isNew: isOwner && !a.ownerSeenAt,
       applicant: {
@@ -341,6 +377,7 @@ export const recruitmentService = {
         id: a.id,
         status: a.status,
         coverLetter: a.coverLetter,
+        cv: serializeCv(a.id, a),
         appliedAt: a.createdAt,
         job: serializeJob(a.job),
       })),
