@@ -7,6 +7,7 @@ import {
   UserStatus,
 } from "@prisma/client";
 import { prisma } from "@/infrastructure/prisma";
+import { env } from "@/config/env";
 import {
   BadRequestError,
   ForbiddenError,
@@ -30,12 +31,14 @@ import {
 } from "@/shared/chat/pagination";
 import {
   buildDirectKey,
+  callInclude,
   chatUserSelect,
   conversationInclude,
   displayNameOf,
   initialsOf,
   messageInclude,
   parseAttachments,
+  serializeCall,
   serializeConversation,
   serializeMessage,
   subtitleOf,
@@ -43,6 +46,7 @@ import {
   type SystemEvent,
 } from "@/shared/chat/helpers";
 import type {
+  CallListQuery,
   ConversationListQuery,
   MessageContent,
   MessageListQuery,
@@ -329,6 +333,40 @@ export const messagesService = {
   async markRead(userId: string, conversationId: string) {
     await assertMembership(conversationId, userId);
     return recordRead(userId, conversationId);
+  },
+
+  /** WebRTC ICE servers for voice calls; TURN credentials come from server env. */
+  iceServers() {
+    const servers: { urls: string | string[]; username?: string; credential?: string }[] = [];
+    if (env.webrtc.stunUrls.length) servers.push({ urls: env.webrtc.stunUrls });
+    if (env.webrtc.turnUrls.length) {
+      servers.push({
+        urls: env.webrtc.turnUrls,
+        username: env.webrtc.turnUsername,
+        credential: env.webrtc.turnCredential,
+      });
+    }
+    return { iceServers: servers };
+  },
+
+  /** Voice-call history for a conversation (most recent first). */
+  async listCalls(userId: string, conversationId: string, query: CallListQuery) {
+    await assertMembership(conversationId, userId);
+    const { skip, take } = toPrismaPagination(query.page, query.pageSize);
+    const [rows, total] = await Promise.all([
+      prisma.call.findMany({
+        where: { conversationId },
+        include: callInclude,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take,
+      }),
+      prisma.call.count({ where: { conversationId } }),
+    ]);
+    return {
+      data: rows.map((call) => serializeCall(call, userId)),
+      meta: buildPaginationMeta(query.page, query.pageSize, total),
+    };
   },
 
   /** Reuses the pair's 1:1 conversation (or creates it), then posts a message. */

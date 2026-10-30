@@ -8,6 +8,7 @@ import { chatAttachmentUploadRoutes } from "@/shared/chat/attachmentRoutes";
 import { messagesController } from "./messages.controller";
 import {
   addParticipantsSchema,
+  callListQuerySchema,
   conversationIdParamSchema,
   conversationListQuerySchema,
   createGroupSchema,
@@ -40,6 +41,7 @@ router.get(
   messagesController.listRecipients,
 );
 router.get("/unread", messagesController.unreadSummary);
+router.get("/ice-servers", messagesController.iceServers);
 router.get(
   "/direct/:userId",
   validate({ params: directUserParamSchema }),
@@ -74,6 +76,11 @@ router.get(
     query: messageListQuerySchema,
   }),
   messagesController.getMessages,
+);
+router.get(
+  "/:id/calls",
+  validate({ params: conversationIdParamSchema, query: callListQuerySchema }),
+  messagesController.listCalls,
 );
 router.post(
   "/:id/messages",
