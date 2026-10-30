@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { authenticate } from "@/middleware/authenticate";
 import { requireEntitlement } from "@/middleware/requireEntitlement";
+import { uploadRateLimiter } from "@/middleware/rateLimit";
 import { validate } from "@/middleware/validate";
+import { cvUpload } from "@/shared/cv/cvStorage";
 import { recruitmentController } from "./recruitment.controller";
 import {
   applyJobSchema,
@@ -53,7 +55,10 @@ router.delete(
 );
 router.post(
   "/:id/apply",
-  validate({ params: jobIdParamSchema, body: applyJobSchema }),
+  uploadRateLimiter,
+  validate({ params: jobIdParamSchema }),
+  ...cvUpload.single("cv"),
+  validate({ body: applyJobSchema }),
   recruitmentController.apply,
 );
 router.delete(
