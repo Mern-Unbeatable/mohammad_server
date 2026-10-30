@@ -385,6 +385,13 @@ describe("recruitmentService.withdraw", () => {
 });
 
 describe("recruitmentService.apply after cancelling", () => {
+  const cv = {
+    key: "someone/1700000000000-0123456789abcdef.pdf",
+    name: "cv.pdf",
+    mime: "application/pdf",
+    size: 1234,
+  };
+
   it("revives a cancelled application as a fresh one", async () => {
     prismaMock.job.findUnique.mockResolvedValue(job());
     prismaMock.jobApplication.findUnique.mockResolvedValue({
@@ -397,13 +404,17 @@ describe("recruitmentService.apply after cancelling", () => {
     });
 
     await expect(
-      recruitmentService.apply("job1", "someone", "Hello"),
+      recruitmentService.apply("job1", "someone", { coverLetter: "Hello", cv }),
     ).resolves.toMatchObject({ id: "app-1", status: "APPLIED" });
     expect(prismaMock.jobApplication.update).toHaveBeenCalledWith({
       where: { id: "app-1" },
       data: {
         status: "APPLIED",
         coverLetter: "Hello",
+        cvKey: cv.key,
+        cvName: cv.name,
+        cvMime: cv.mime,
+        cvSize: cv.size,
         ownerSeenAt: null,
         createdAt: expect.any(Date),
       },
@@ -420,7 +431,7 @@ describe("recruitmentService.apply after cancelling", () => {
     });
 
     await expect(
-      recruitmentService.apply("job1", "someone"),
+      recruitmentService.apply("job1", "someone", { cv }),
     ).rejects.toThrow(/already applied/);
   });
 

@@ -526,6 +526,12 @@ model JobApplication {
   applicantId String
   applicant   User                 @relation(fields: [applicantId], references: [id], onDelete: Cascade)
   coverLetter String?
+  /// Private CV/résumé reference (`<applicantId>/<file>`); served only through signed links.
+  cvKey       String?
+  /// Original CV file name shown to the applicant and job owner.
+  cvName      String?
+  cvMime      String?
+  cvSize      Int?
   status      JobApplicationStatus @default(APPLIED)
   /// When the job owner first viewed this application; null = new.
   ownerSeenAt DateTime?
