@@ -121,6 +121,19 @@ export const env = {
     priceYearly: optional("STRIPE_PRICE_YEARLY", ""),
     clientUrl,
   },
+  /** ICE servers for WebRTC voice calls. TURN credentials stay server-side and are handed to authenticated clients only. */
+  webrtc: {
+    stunUrls: optional("WEBRTC_STUN_URLS", "stun:stun.l.google.com:19302")
+      .split(",")
+      .map((url) => url.trim())
+      .filter(Boolean),
+    turnUrls: optional("WEBRTC_TURN_URLS", "")
+      .split(",")
+      .map((url) => url.trim())
+      .filter(Boolean),
+    turnUsername: optional("WEBRTC_TURN_USERNAME", ""),
+    turnCredential: optional("WEBRTC_TURN_CREDENTIAL", ""),
+  },
 } as const;
 
 export type Env = typeof env;

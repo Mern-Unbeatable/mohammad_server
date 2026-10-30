@@ -95,10 +95,16 @@ export const parseAttachments = parseStoredAttachments;
 
 export const previewOf = (
   message:
-    | { body: string; attachments: Prisma.JsonValue; listingId?: string | null }
+    | {
+        body: string;
+        attachments: Prisma.JsonValue;
+        listingId?: string | null;
+        type?: string;
+      }
     | undefined,
 ): string | null => {
   if (!message) return null;
+  if (message.type === "CALL") return "Voice call";
   if (message.body) return message.body;
   const count = parseAttachments(message.attachments).length;
   if (count === 0) return message.listingId ? "Shared a listing" : null;
@@ -238,4 +244,34 @@ export const serializeMessage = (message: MessageWithRelations, userId: string) 
   senderInitials: initialsOf(message.sender),
   time: message.createdAt,
   editedAt: message.editedAt ?? null,
+});
+
+export const callInclude = {
+  caller: { select: chatUserSelect },
+  callee: { select: chatUserSelect },
+} satisfies Prisma.CallInclude;
+
+type CallWithUsers = Prisma.CallGetPayload<{ include: typeof callInclude }>;
+
+const callUserSummary = (user: ChatUser) => ({
+  id: user.id,
+  name: displayNameOf(user),
+  avatar: user.profile?.avatarUrl ?? null,
+  initials: initialsOf(user),
+});
+
+export const serializeCall = (call: CallWithUsers, userId: string) => ({
+  id: call.id,
+  conversationId: call.conversationId,
+  status: call.status,
+  direction: call.callerId === userId ? ("outgoing" as const) : ("incoming" as const),
+  callerId: call.callerId,
+  calleeId: call.calleeId,
+  caller: callUserSummary(call.caller),
+  callee: callUserSummary(call.callee),
+  durationSec: call.durationSec,
+  startedAt: call.startedAt,
+  answeredAt: call.answeredAt ?? null,
+  endedAt: call.endedAt ?? null,
+  createdAt: call.createdAt,
 });

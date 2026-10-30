@@ -126,7 +126,13 @@ export const messageListQuerySchema = z.object({
   pageSize: z.coerce.number().int().positive().max(100).default(30),
 });
 
+export const callListQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(100).default(20),
+});
+
 export type ConversationListQuery = z.infer<typeof conversationListQuerySchema>;
 export type RecipientsQuery = z.infer<typeof recipientsQuerySchema>;
 export type MessageListQuery = z.infer<typeof messageListQuerySchema>;
+export type CallListQuery = z.infer<typeof callListQuerySchema>;
 export type MessageContent = z.infer<typeof messageContentSchema>;
