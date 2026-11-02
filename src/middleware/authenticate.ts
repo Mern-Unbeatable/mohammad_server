@@ -1,13 +1,15 @@
 import { NextFunction, Request, Response } from "express";
 import { verifyAccessToken } from "@/shared/utils/jwt";
 import { UnauthenticatedError } from "@/shared/errors/AppError";
+import { readAccessCookie } from "@/shared/http/authCookies";
 
 const extractToken = (req: Request): string | null => {
   const header = req.headers.authorization;
   if (header?.startsWith("Bearer ")) {
     return header.slice(7).trim();
   }
-  return null;
+  // Fall back to the httpOnly access-token cookie (browser clients).
+  return readAccessCookie(req);
 };
 
 /** Requires a valid access token; attaches the principal to req.user. */

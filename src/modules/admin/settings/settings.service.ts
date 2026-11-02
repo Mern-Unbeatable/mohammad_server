@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/infrastructure/prisma";
-import { NotFoundError } from "@/shared/errors/AppError";
+import { BadRequestError, NotFoundError } from "@/shared/errors/AppError";
 import {
   DEFAULT_AD_DURATION_DAYS,
   PRICING_CURRENCY,
@@ -82,6 +82,26 @@ export const settingsService = {
       tiers: normalizeSponsoredPricing(
         await readSettingValue(SETTING_KEYS.sponsoredPricing),
       ),
+    };
+  },
+
+  /**
+   * Resolve the authoritative advertising fee (in cents) for a given sponsored
+   * duration. The server never trusts a client-supplied fee — it is always
+   * derived from the current `sponsored_pricing` setting.
+   */
+  async getSponsoredFeeCents(durationDays: number) {
+    const tiers = normalizeSponsoredPricing(
+      await readSettingValue(SETTING_KEYS.sponsoredPricing),
+    );
+    const tier = tiers.find((item) => item.days === durationDays);
+    if (!tier) {
+      throw new BadRequestError("Unsupported advertisement duration");
+    }
+    return {
+      feeCents: Math.round(tier.price * 100),
+      currency: PRICING_CURRENCY,
+      label: tier.label,
     };
   },
 };
