@@ -6,6 +6,7 @@ import {
 } from "@/modules/admin/settings/settings.pricing";
 
 const AD_CATEGORIES = ["PRODUCT", "SERVICE", "PROMO", "WEBINAR"] as const;
+const AD_DESTINATION_MODES = ["INTERNAL", "EXTERNAL"] as const;
 const AD_STATUSES = [
   "PENDING_PAYMENT",
   "PENDING",
@@ -33,6 +34,16 @@ export const createAdSchema = z.object({
   eventDate: z.coerce.date().optional(),
   eventTime: z.string().trim().max(20).optional(),
   organizer: z.string().trim().max(160).optional(),
+  destinationMode: z.enum(AD_DESTINATION_MODES),
+  destinationResourceId: z.string().uuid().optional(),
+  destinationUrl: z
+    .string()
+    .url()
+    .refine(
+      (value) => /^https?:\/\//i.test(value),
+      "URL must start with http:// or https://",
+    )
+    .optional(),
   durationDays: z
     .number()
     .int()

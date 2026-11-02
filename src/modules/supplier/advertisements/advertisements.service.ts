@@ -1,4 +1,11 @@
-import { AdPaymentStatus, AdStatus, Prisma } from "@prisma/client";
+import {
+  AdCategory,
+  AdDestinationMode,
+  AdPaymentStatus,
+  AdStatus,
+  Prisma,
+  Role,
+} from "@prisma/client";
 import type Stripe from "stripe";
 import { prisma } from "@/infrastructure/prisma";
 import { env } from "@/config/env";
@@ -31,6 +38,9 @@ const serialize = (ad: Payload) => ({
   title: ad.title,
   category: ad.category,
   description: ad.description,
+  destinationMode: ad.destinationMode,
+  destinationResourceId: ad.destinationResourceId,
+  destinationUrl: ad.destinationUrl,
   imageUrl: ad.imageUrl,
   videoUrl: ad.videoUrl,
   price: ad.price === null ? null : ad.price / 100,
@@ -70,6 +80,9 @@ const CONTENT_FIELDS = [
   "eventDate",
   "eventTime",
   "organizer",
+  "destinationMode",
+  "destinationResourceId",
+  "destinationUrl",
 ] as const;
 
 /**
@@ -115,6 +128,136 @@ async function loadOwned(userId: string, id: string) {
     throw new ForbiddenError("You can only manage your own ads");
   }
   return ad;
+}
+
+const isHttpUrl = (value: string) => /^https?:\/\//i.test(value);
+
+type DestinationValidationInput = {
+  supplierId: string;
+  category: AdCategory;
+  destinationMode?: AdDestinationMode | string | null;
+  destinationResourceId?: string | null;
+  destinationUrl?: string | null;
+};
+
+async function normalizeDestination(input: DestinationValidationInput) {
+  const destinationMode =
+    input.destinationMode === AdDestinationMode.EXTERNAL
+      ? AdDestinationMode.EXTERNAL
+      : input.destinationMode === AdDestinationMode.INTERNAL
+        ? AdDestinationMode.INTERNAL
+        : null;
+
+  if (!destinationMode) {
+    throw new BadRequestError("Destination selection is required");
+  }
+
+  if (destinationMode === AdDestinationMode.EXTERNAL) {
+    const destinationUrl = String(input.destinationUrl || "").trim();
+    if (!destinationUrl || !isHttpUrl(destinationUrl)) {
+      throw new BadRequestError(
+        "External destinations must use a valid HTTP/HTTPS URL",
+      );
+    }
+    return {
+      destinationMode,
+      destinationResourceId: null,
+      destinationUrl,
+    };
+  }
+
+  if (input.category === AdCategory.SERVICE) {
+    const supplier = await prisma.user.findUnique({
+      where: { id: input.supplierId },
+      select: { id: true, role: true },
+    });
+    if (!supplier || supplier.role !== Role.SUPPLIER) {
+      throw new BadRequestError("Supplier profile destination is invalid");
+    }
+    return {
+      destinationMode,
+      destinationResourceId: input.supplierId,
+      destinationUrl: null,
+    };
+  }
+
+  const resourceId = String(input.destinationResourceId || "").trim();
+  if (!resourceId) {
+    throw new BadRequestError("Internal destinations require a resource");
+  }
+
+  if (input.category === AdCategory.PRODUCT) {
+    const listing = await prisma.listing.findUnique({
+      where: { id: resourceId },
+      select: { id: true, sellerId: true },
+    });
+    if (!listing || listing.sellerId !== input.supplierId) {
+      throw new BadRequestError("Selected product does not belong to supplier");
+    }
+  } else {
+    const post = await prisma.generalPost.findUnique({
+      where: { id: resourceId },
+      select: { id: true, authorId: true },
+    });
+    if (!post || post.authorId !== input.supplierId) {
+      throw new BadRequestError(
+        input.category === AdCategory.PROMO
+          ? "Selected offer does not belong to supplier"
+          : "Selected event does not belong to supplier",
+      );
+    }
+  }
+
+  return {
+    destinationMode,
+    destinationResourceId: resourceId,
+    destinationUrl: null,
+  };
+}
+
+async function buildCtaRedirectUrl(ad: {
+  category: AdCategory;
+  destinationMode: AdDestinationMode;
+  destinationResourceId: string | null;
+  destinationUrl: string | null;
+  supplierId: string;
+}) {
+  if (ad.destinationMode === AdDestinationMode.EXTERNAL) {
+    const url = String(ad.destinationUrl || "").trim();
+    if (!url || !isHttpUrl(url)) {
+      throw new BadRequestError("Invalid external destination URL");
+    }
+    return url;
+  }
+
+  if (ad.category === AdCategory.SERVICE) {
+    return `/contacts/${ad.destinationResourceId || ad.supplierId}`;
+  }
+
+  const resourceId = String(ad.destinationResourceId || "").trim();
+  if (!resourceId) {
+    return `/contacts/${ad.supplierId}`;
+  }
+
+  if (ad.category === AdCategory.PRODUCT) {
+    const listing = await prisma.listing.findUnique({
+      where: { id: resourceId },
+      select: { id: true, sellerId: true },
+    });
+    if (!listing || listing.sellerId !== ad.supplierId) {
+      throw new NotFoundError("Destination product not found");
+    }
+    return `/marketplace/${listing.id}`;
+  }
+
+  const post = await prisma.generalPost.findUnique({
+    where: { id: resourceId },
+    select: { id: true, authorId: true },
+  });
+  if (!post || post.authorId !== ad.supplierId) {
+    throw new NotFoundError("Destination post not found");
+  }
+  return `/general/${post.id}`;
 }
 
 async function markAdPaid(ad: { id: string; status: AdStatus }) {
@@ -224,10 +367,29 @@ export const advertisementsService = {
       durationDays: number;
       title: string;
       description: string;
+      category: AdCategory;
+      destinationMode: AdDestinationMode;
+      destinationResourceId?: string;
+      destinationUrl?: string;
       [key: string]: unknown;
     },
   ) {
-    const { price, durationDays, ...rest } = input;
+    const {
+      price,
+      durationDays,
+      category,
+      destinationMode,
+      destinationResourceId,
+      destinationUrl,
+      ...rest
+    } = input;
+    const destination = await normalizeDestination({
+      supplierId,
+      category,
+      destinationMode,
+      destinationResourceId,
+      destinationUrl,
+    });
 
     // Idempotency guard: an accidental double-submit (double click, retry,
     // refresh mid-request) must not create two draft ads. Reuse any identical
@@ -237,6 +399,10 @@ export const advertisementsService = {
         supplierId,
         title: input.title,
         description: input.description,
+        category: input.category,
+        destinationMode: destination.destinationMode,
+        destinationResourceId: destination.destinationResourceId,
+        destinationUrl: destination.destinationUrl,
         status: AdStatus.PENDING_PAYMENT,
         createdAt: { gt: new Date(Date.now() - 60_000) },
       },
@@ -254,8 +420,12 @@ export const advertisementsService = {
       data: {
         ...(rest as Prisma.AdvertisementUncheckedCreateInput),
         title: input.title,
+        category: input.category,
         description: input.description,
         supplierId,
+        destinationMode: destination.destinationMode,
+        destinationResourceId: destination.destinationResourceId,
+        destinationUrl: destination.destinationUrl,
         durationDays,
         price: price === undefined ? null : Math.round(price * 100),
         feeAmount: feeCents,
@@ -276,6 +446,26 @@ export const advertisementsService = {
     const data: Prisma.AdvertisementUpdateInput = { ...input };
     if (typeof input.price === "number")
       data.price = Math.round(input.price * 100);
+
+    const category = (input.category as AdCategory | undefined) ?? ad.category;
+    const destination = await normalizeDestination({
+      supplierId: ad.supplierId,
+      category,
+      destinationMode:
+        (input.destinationMode as AdDestinationMode | undefined) ??
+        ad.destinationMode,
+      destinationResourceId:
+        input.destinationResourceId === undefined
+          ? ad.destinationResourceId
+          : (input.destinationResourceId as string | null),
+      destinationUrl:
+        input.destinationUrl === undefined
+          ? ad.destinationUrl
+          : (input.destinationUrl as string | null),
+    });
+    data.destinationMode = destination.destinationMode;
+    data.destinationResourceId = destination.destinationResourceId;
+    data.destinationUrl = destination.destinationUrl;
 
     const durationChanged =
       typeof input.durationDays === "number" &&
@@ -542,6 +732,32 @@ export const advertisementsService = {
     });
 
     return serialize(updated);
+  },
+
+  async cta(id: string, actorKey: string) {
+    const ad = await prisma.advertisement.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        expiryDate: true,
+        category: true,
+        supplierId: true,
+        destinationMode: true,
+        destinationResourceId: true,
+        destinationUrl: true,
+      },
+    });
+    if (!ad || ad.status !== AdStatus.ACTIVE) {
+      throw new NotFoundError("Advertisement not found");
+    }
+    if (ad.expiryDate && ad.expiryDate <= new Date()) {
+      throw new NotFoundError("Advertisement has expired");
+    }
+
+    const redirectUrl = await buildCtaRedirectUrl(ad);
+    await advertisementsService.track(id, "clicks", actorKey);
+    return { redirectUrl };
   },
 
   /** Increments a lightweight engagement metric on an active ad (de-duplicated). */

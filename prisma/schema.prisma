@@ -157,6 +157,11 @@ enum AdPaymentStatus {
   REFUNDED
 }
 
+enum AdDestinationMode {
+  INTERNAL
+  EXTERNAL
+}
+
 enum ReportTargetType {
   POST
   COMMENT
@@ -728,6 +733,9 @@ model Advertisement {
   title           String
   category        AdCategory
   description     String
+  destinationMode AdDestinationMode
+  destinationResourceId String?
+  destinationUrl  String?
   imageUrl        String?
   videoUrl        String?
   price           Int? // stored in cents
