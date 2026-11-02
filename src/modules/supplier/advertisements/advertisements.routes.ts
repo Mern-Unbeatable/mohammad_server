@@ -25,6 +25,12 @@ router.get(
   advertisementsController.listActive,
 );
 router.post(
+  "/:id/cta",
+  adTrackRateLimiter,
+  validate({ params: adIdParamSchema }),
+  advertisementsController.cta,
+);
+router.post(
   "/:id/track/:metric",
   adTrackRateLimiter,
   validate({ params: adIdParamSchema }),

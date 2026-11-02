@@ -92,6 +92,12 @@ export const advertisementsController = {
     sendSuccess(res, { data, message: "Advertisement reviewed" });
   }),
 
+  cta: asyncHandler(async (req: Request, res: Response) => {
+    const actorKey = req.user?.id || req.ip || "anon";
+    const data = await advertisementsService.cta(req.params.id, actorKey);
+    sendSuccess(res, { data });
+  }),
+
   track: asyncHandler(async (req: Request, res: Response) => {
     const metric = req.params.metric === "clicks" ? "clicks" : "views";
     const actorKey = req.user?.id || req.ip || "anon";
