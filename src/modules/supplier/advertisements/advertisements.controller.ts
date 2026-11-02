@@ -58,6 +58,31 @@ export const advertisementsController = {
     sendSuccess(res, { data: { message: "Advertisement deleted" } });
   }),
 
+  cancel: asyncHandler(async (req: Request, res: Response) => {
+    const data = await advertisementsService.cancel(
+      req.user!.id,
+      req.params.id,
+    );
+    sendSuccess(res, { data, message: "Advertisement cancelled" });
+  }),
+
+  startCheckout: asyncHandler(async (req: Request, res: Response) => {
+    const data = await advertisementsService.startCheckout(
+      req.user!.id,
+      req.params.id,
+    );
+    sendSuccess(res, { data });
+  }),
+
+  confirmCheckout: asyncHandler(async (req: Request, res: Response) => {
+    const data = await advertisementsService.confirmCheckout(
+      req.user!.id,
+      req.params.id,
+      req.body.sessionId,
+    );
+    sendSuccess(res, { data, message: "Payment confirmed" });
+  }),
+
   review: asyncHandler(async (req: Request, res: Response) => {
     const data = await advertisementsService.review(
       req.params.id,
@@ -69,7 +94,8 @@ export const advertisementsController = {
 
   track: asyncHandler(async (req: Request, res: Response) => {
     const metric = req.params.metric === "clicks" ? "clicks" : "views";
-    await advertisementsService.track(req.params.id, metric);
+    const actorKey = req.user?.id || req.ip || "anon";
+    await advertisementsService.track(req.params.id, metric, actorKey);
     sendSuccess(res, { data: { tracked: metric } });
   }),
 };

@@ -50,5 +50,8 @@ export const chatSendRateLimiter = buildLimiter(30, 60 * 1000, byUser);
 /** File uploads (chat and public): 40 requests per 10 minutes per account. */
 export const uploadRateLimiter = buildLimiter(40, 10 * 60 * 1000, byUser);
 
+/** Ad engagement tracking: 120 impressions/clicks per minute per account. */
+export const adTrackRateLimiter = buildLimiter(120, 60 * 1000, byUser);
+
 /** Signed chat attachment downloads (images render many at once): per IP. */
 export const attachmentDownloadRateLimiter = buildLimiter(600, 15 * 60 * 1000);

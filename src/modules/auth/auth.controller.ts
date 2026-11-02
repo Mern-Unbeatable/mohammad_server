@@ -2,26 +2,41 @@ import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import { sendSuccess } from "@/shared/http/apiResponse";
 import { asyncHandler } from "@/shared/utils/asyncHandler";
+import {
+  clearAuthCookies,
+  readRefreshCookie,
+  setAuthCookies,
+} from "@/shared/http/authCookies";
 import { authService } from "./auth.service";
 
 export const authController = {
   register: asyncHandler(async (req: Request, res: Response) => {
     const result = await authService.register(req.body);
+    setAuthCookies(res, result);
     sendSuccess(res, { statusCode: StatusCodes.CREATED, data: result });
   }),
 
   login: asyncHandler(async (req: Request, res: Response) => {
     const result = await authService.login(req.body);
+    setAuthCookies(res, result);
     sendSuccess(res, { data: result });
   }),
 
   refresh: asyncHandler(async (req: Request, res: Response) => {
-    const result = await authService.refresh(req.body.refreshToken);
+    // Browser clients send the refresh token via httpOnly cookie; API clients
+    // may still send it in the body.
+    const refreshToken = req.body?.refreshToken || readRefreshCookie(req);
+    const result = await authService.refresh(refreshToken);
+    setAuthCookies(res, result);
     sendSuccess(res, { data: result });
   }),
 
   logout: asyncHandler(async (req: Request, res: Response) => {
-    await authService.logout(req.body.refreshToken);
+    const refreshToken = req.body?.refreshToken || readRefreshCookie(req);
+    if (refreshToken) {
+      await authService.logout(refreshToken);
+    }
+    clearAuthCookies(res);
     sendSuccess(res, { data: { message: "Logged out" } });
   }),
 
@@ -42,6 +57,7 @@ export const authController = {
 
   resetPassword: asyncHandler(async (req: Request, res: Response) => {
     await authService.resetPassword(req.body);
+    clearAuthCookies(res);
     sendSuccess(res, {
       data: {
         message:

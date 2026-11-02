@@ -260,7 +260,16 @@ export async function applyCheckoutSession(session: Stripe.Checkout.Session) {
 async function processStripeEvent(event: Stripe.Event, stripe: Stripe) {
   switch (event.type) {
     case "checkout.session.completed": {
-      await applyCheckoutSession(event.data.object as Stripe.Checkout.Session);
+      const session = event.data.object as Stripe.Checkout.Session;
+      // One-time advertising-fee payments are tagged with metadata.kind = "ad".
+      if (session.mode === "payment" && session.metadata?.kind === "ad") {
+        const { advertisementsService } = await import(
+          "@/modules/supplier/advertisements/advertisements.service"
+        );
+        await advertisementsService.applyAdCheckoutSession(session);
+      } else {
+        await applyCheckoutSession(session);
+      }
       break;
     }
     case "customer.subscription.created":

@@ -143,10 +143,18 @@ enum AdCategory {
 }
 
 enum AdStatus {
+  PENDING_PAYMENT
   PENDING
   ACTIVE
   EXPIRED
   REJECTED
+  CANCELLED
+}
+
+enum AdPaymentStatus {
+  UNPAID
+  PAID
+  REFUNDED
 }
 
 enum ReportTargetType {
@@ -731,8 +739,14 @@ model Advertisement {
   durationDays    Int        @default(7)
   startDate       DateTime?
   expiryDate      DateTime?
-  status          AdStatus   @default(PENDING)
+  status          AdStatus   @default(PENDING_PAYMENT)
   rejectionReason String?
+  // Advertising fee (sponsored tier) charged to the supplier, in cents.
+  feeAmount               Int?
+  paymentStatus           AdPaymentStatus @default(UNPAID)
+  paidAt                  DateTime?
+  stripeCheckoutSessionId String?
+  checkoutSessionExpiresAt DateTime?
   views           Int        @default(0)
   clicks          Int        @default(0)
   createdAt       DateTime   @default(now())
@@ -742,6 +756,7 @@ model Advertisement {
   @@index([supplierId])
   @@index([category])
   @@index([createdAt])
+  @@index([stripeCheckoutSessionId])
 }
 
 // ===================================================================

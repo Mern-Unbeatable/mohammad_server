@@ -5,8 +5,15 @@ import { env } from "@/config/env";
 import { logger } from "@/config/logger";
 import { onNotificationsCreated, prisma } from "@/infrastructure/prisma";
 import { verifyAccessToken } from "@/shared/utils/jwt";
+import { readCookie } from "@/shared/http/authCookies";
 import { createTypingThrottle } from "./typingThrottle";
 import { handleCallParticipantGone, registerCallHandlers } from "./calls";
+
+/** Parse a single cookie value from a raw Cookie header string. */
+const readCookieHeader = (
+  header: string | undefined,
+  name: string,
+): string | null => readCookie({ headers: { cookie: header } } as never, name);
 
 interface SocketUser {
   id: string;
@@ -119,7 +126,14 @@ export const initRealtime = (httpServer: HttpServer): Server => {
   onNotificationsCreated((userIds) => emitToUsers(userIds, "notification:new", {}));
 
   io.use(async (socket, next) => {
-    const token = socket.handshake.auth?.token;
+    const authToken = socket.handshake.auth?.token;
+    // Fall back to the httpOnly access-token cookie sent on the WS handshake.
+    const cookieToken = readCookieHeader(
+      socket.handshake.headers.cookie,
+      "accessToken",
+    );
+    const token =
+      typeof authToken === "string" && authToken ? authToken : cookieToken;
     if (typeof token !== "string" || !token) {
       next(new Error("UNAUTHENTICATED"));
       return;

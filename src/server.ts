@@ -5,6 +5,10 @@ import { connectDatabase, disconnectDatabase } from "@/infrastructure/prisma";
 import { verifyMailer } from "@/infrastructure/mailer";
 import { closeRealtime, initRealtime } from "@/realtime/socket";
 import { publicUploadRoot } from "@/middleware/upload";
+import { advertisementsService } from "@/modules/supplier/advertisements/advertisements.service";
+
+/** How often expired advertisements are swept to EXPIRED. */
+const AD_EXPIRY_SWEEP_MS = 60 * 60 * 1000;
 
 const bootstrap = async (): Promise<void> => {
   await connectDatabase();
@@ -23,8 +27,17 @@ const bootstrap = async (): Promise<void> => {
   initRealtime(server);
   void verifyMailer();
 
+  // Transition advertisements past their paid window to EXPIRED.
+  void advertisementsService.expireStaleAds();
+  const adExpirySweep = setInterval(
+    () => void advertisementsService.expireStaleAds(),
+    AD_EXPIRY_SWEEP_MS,
+  );
+  adExpirySweep.unref();
+
   const shutdown = async (signal: string): Promise<void> => {
     logger.info(`${signal} received, shutting down gracefully`);
+    clearInterval(adExpirySweep);
     await closeRealtime();
     server.close(async () => {
       await disconnectDatabase();

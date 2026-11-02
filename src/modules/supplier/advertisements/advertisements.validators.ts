@@ -6,7 +6,14 @@ import {
 } from "@/modules/admin/settings/settings.pricing";
 
 const AD_CATEGORIES = ["PRODUCT", "SERVICE", "PROMO", "WEBINAR"] as const;
-const AD_STATUSES = ["PENDING", "ACTIVE", "EXPIRED", "REJECTED"] as const;
+const AD_STATUSES = [
+  "PENDING_PAYMENT",
+  "PENDING",
+  "ACTIVE",
+  "EXPIRED",
+  "REJECTED",
+  "CANCELLED",
+] as const;
 
 export const adListQuerySchema = paginationQuerySchema.extend({
   status: z.enum(AD_STATUSES).optional(),
@@ -38,6 +45,10 @@ export const updateAdSchema = createAdSchema.partial();
 export const reviewAdSchema = z.object({
   status: z.enum(["ACTIVE", "REJECTED", "EXPIRED"]),
   rejectionReason: z.string().trim().max(1000).optional(),
+});
+
+export const confirmAdCheckoutSchema = z.object({
+  sessionId: z.string().trim().min(10).max(255),
 });
 
 export const adIdParamSchema = z.object({ id: z.string().uuid() });

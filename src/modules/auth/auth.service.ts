@@ -192,7 +192,10 @@ export const authService = {
     return { user: serializeUser(user), ...tokens };
   },
 
-  async refresh(refreshToken: string) {
+  async refresh(refreshToken: string | undefined | null) {
+    if (!refreshToken) {
+      throw new UnauthenticatedError("Invalid or expired refresh token");
+    }
     const payload = verifyRefreshToken(refreshToken);
     const tokenHash = hashToken(refreshToken);
 

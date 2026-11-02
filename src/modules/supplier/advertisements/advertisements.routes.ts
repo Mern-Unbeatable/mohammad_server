@@ -3,10 +3,12 @@ import { Role } from "@prisma/client";
 import { authenticate } from "@/middleware/authenticate";
 import { authorize } from "@/middleware/authorize";
 import { validate } from "@/middleware/validate";
+import { adTrackRateLimiter } from "@/middleware/rateLimit";
 import { advertisementsController } from "./advertisements.controller";
 import {
   adIdParamSchema,
   adListQuerySchema,
+  confirmAdCheckoutSchema,
   createAdSchema,
   reviewAdSchema,
   updateAdSchema,
@@ -24,6 +26,7 @@ router.get(
 );
 router.post(
   "/:id/track/:metric",
+  adTrackRateLimiter,
   validate({ params: adIdParamSchema }),
   advertisementsController.track,
 );
@@ -61,6 +64,26 @@ router.delete(
   "/:id",
   validate({ params: adIdParamSchema }),
   advertisementsController.remove,
+);
+
+// Supplier payment (Stripe one-time Checkout) + cancel
+router.post(
+  "/:id/checkout",
+  authorize(Role.SUPPLIER),
+  validate({ params: adIdParamSchema }),
+  advertisementsController.startCheckout,
+);
+router.post(
+  "/:id/checkout/confirm",
+  authorize(Role.SUPPLIER),
+  validate({ params: adIdParamSchema, body: confirmAdCheckoutSchema }),
+  advertisementsController.confirmCheckout,
+);
+router.patch(
+  "/:id/cancel",
+  authorize(Role.SUPPLIER),
+  validate({ params: adIdParamSchema }),
+  advertisementsController.cancel,
 );
 
 // Admin approval workflow
