@@ -4,10 +4,16 @@ import { FeedPostType, ReactionType } from "@prisma/client";
 import { sendSuccess } from "@/shared/http/apiResponse";
 import { asyncHandler } from "@/shared/utils/asyncHandler";
 import { feedService } from "./feed.service";
+import { feedAdsService } from "./feedAds.service";
 
 export const feedController = {
   list: asyncHandler(async (req: Request, res: Response) => {
     const result = await feedService.list(req.user!.id, req.query as never);
+    sendSuccess(res, { data: result.data, meta: result.meta });
+  }),
+
+  listAds: asyncHandler(async (req: Request, res: Response) => {
+    const result = await feedAdsService.listForFeed(req.query as never);
     sendSuccess(res, { data: result.data, meta: result.meta });
   }),
 

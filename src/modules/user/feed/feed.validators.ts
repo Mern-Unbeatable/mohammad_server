@@ -126,3 +126,6 @@ export const commentParamSchema = z.object({
   id: z.string().uuid(),
   commentId: z.string().uuid(),
 });
+
+export const feedAdsQuerySchema = paginationQuerySchema;
+export type FeedAdsQuery = z.infer<typeof feedAdsQuerySchema>;

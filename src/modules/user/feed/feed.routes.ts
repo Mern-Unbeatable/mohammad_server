@@ -8,6 +8,7 @@ import {
   createCommentSchema,
   createPostSchema,
   feedListQuerySchema,
+  feedAdsQuerySchema,
   postIdParamSchema,
   reactionListQuerySchema,
   reactionSchema,
@@ -21,6 +22,7 @@ const router = Router();
 router.use(authenticate, requireEntitlement);
 
 router.get("/", validate({ query: feedListQuerySchema }), feedController.list);
+router.get("/ads/active", validate({ query: feedAdsQuerySchema }), feedController.listAds);
 router.post("/", validate({ body: createPostSchema }), feedController.create);
 router.get(
   "/:id",
