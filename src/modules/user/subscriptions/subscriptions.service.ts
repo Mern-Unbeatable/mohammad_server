@@ -16,6 +16,10 @@ import {
   deriveSubscriptionState,
 } from "./subscriptionLifecycle";
 import { PLAN_CATALOGUE, MEMBERSHIP_FEATURES } from "./planCatalogue";
+import {
+  recordAdCheckoutSession,
+  recordInvoiceById,
+} from "@/modules/payments/payments.sync";
 
 type SubscribeResult = {
   subscription: ReturnType<typeof serializeSubscription>;
@@ -67,7 +71,8 @@ async function syncLocalLifecycle(userId: string) {
   });
 }
 
-async function ensureStripeCustomer(userId: string): Promise<string> {
+/** The member's Stripe customer id, created (and stored) on first use. */
+export async function ensureStripeCustomer(userId: string): Promise<string> {
   const user = await loadUser(userId);
   const existing = user.subscription?.stripeCustomerId;
   const stripe = getStripe();
@@ -267,6 +272,7 @@ async function processStripeEvent(event: Stripe.Event, stripe: Stripe) {
           "@/modules/supplier/advertisements/advertisements.service"
         );
         await advertisementsService.applyAdCheckoutSession(session);
+        await recordAdCheckoutSession(session);
       } else {
         await applyCheckoutSession(session);
       }
@@ -288,6 +294,14 @@ async function processStripeEvent(event: Stripe.Event, stripe: Stripe) {
         const stripeSub = await stripe.subscriptions.retrieve(subId);
         await applyStripeSubscription(stripeSub);
       }
+      // Payment history; re-reads the invoice so a late event can't regress it.
+      await recordInvoiceById(invoice.id);
+      break;
+    }
+    case "invoice.finalized":
+    case "invoice.voided":
+    case "invoice.marked_uncollectible": {
+      await recordInvoiceById((event.data.object as Stripe.Invoice).id);
       break;
     }
     default:
@@ -504,6 +518,13 @@ export const subscriptionsService = {
     }
 
     await applyCheckoutSession(session);
+
+    // Show the first invoice in the member's history even if the webhook lags.
+    if (session.invoice) {
+      await recordInvoiceById(session.invoice, { userId }).catch((err) =>
+        logger.warn({ userId, sessionId, err }, "Could not record checkout invoice"),
+      );
+    }
 
     if (session.subscription) {
       const subId =

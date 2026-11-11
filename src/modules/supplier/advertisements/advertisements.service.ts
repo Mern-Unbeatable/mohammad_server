@@ -23,6 +23,8 @@ import {
   getStripe,
   isPaymentConfigured,
 } from "@/modules/user/subscriptions/stripeClient";
+import { ensureStripeCustomer } from "@/modules/user/subscriptions/subscriptions.service";
+import { recordAdCheckoutSession } from "@/modules/payments/payments.sync";
 import type { AdListQuery } from "./advertisements.validators";
 
 const include = {
@@ -589,9 +591,21 @@ export const advertisementsService = {
     const successUrl = `${base}/supplier/ads?checkout=success&ad=${id}&session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${base}/supplier/ads?checkout=cancelled&ad=${id}`;
 
+    // Bill the supplier's own Stripe customer so the fee lands in their
+    // payment history; without one Stripe still invoices a guest customer.
+    let customer: string | undefined;
+    try {
+      customer = await ensureStripeCustomer(userId);
+    } catch (err) {
+      logger.warn({ userId, err }, "No Stripe customer for ad checkout; using a guest customer");
+    }
+    const description = `Sponsored advertisement — ${ad.durationDays} days`;
+    const paymentMetadata = { kind: "ad", adId: id, userId };
+
     const session = await stripe.checkout.sessions.create(
       {
         mode: "payment",
+        ...(customer ? { customer } : {}),
         line_items: [
           {
             quantity: 1,
@@ -599,7 +613,7 @@ export const advertisementsService = {
               currency: "eur",
               unit_amount: feeCents,
               product_data: {
-                name: `Sponsored advertisement — ${ad.durationDays} days`,
+                name: description,
                 metadata: { adId: id },
               },
             },
@@ -608,8 +622,13 @@ export const advertisementsService = {
         success_url: successUrl,
         cancel_url: cancelUrl,
         client_reference_id: userId,
-        metadata: { kind: "ad", adId: id, userId },
-        payment_intent_data: { metadata: { kind: "ad", adId: id, userId } },
+        metadata: paymentMetadata,
+        payment_intent_data: { metadata: paymentMetadata },
+        // Issue a Stripe invoice (PDF + hosted page) for the fee.
+        invoice_creation: {
+          enabled: true,
+          invoice_data: { description, metadata: paymentMetadata },
+        },
       },
       { idempotencyKey: `ad_checkout_${id}_${reservationExpiry.getTime()}` },
     );
@@ -657,7 +676,11 @@ export const advertisementsService = {
     }
 
     if (session.payment_status === "paid") {
-      return serialize(await markAdPaid(ad));
+      const paid = await markAdPaid(ad);
+      await recordAdCheckoutSession(session).catch((err) =>
+        logger.warn({ adId: id, sessionId, err }, "Could not record ad payment"),
+      );
+      return serialize(paid);
     }
 
     return serialize(
