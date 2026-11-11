@@ -14,6 +14,7 @@ import { routes as advertisementsRoutes } from "@/modules/supplier/advertisement
 import { routes as reportsRoutes } from "@/modules/admin/reports";
 import { routes as searchRoutes } from "@/modules/user/search";
 import { routes as subscriptionsRoutes } from "@/modules/user/subscriptions";
+import { routes as paymentsRoutes } from "@/modules/payments";
 import { routes as adminRoutes } from "@/modules/admin";
 import { uploadsRoutes } from "@/modules/uploads/uploads.routes";
 import { routes as contactRoutes } from "@/modules/contact";
@@ -66,6 +67,7 @@ apiRouter.use("/notifications", notificationsRoutes);
 apiRouter.use("/advertisements", advertisementsRoutes);
 apiRouter.use("/reports", reportsRoutes);
 apiRouter.use("/subscriptions", subscriptionsRoutes);
+apiRouter.use("/payments", paymentsRoutes);
 apiRouter.use("/search", searchRoutes);
 apiRouter.use("/admin", adminRoutes);
 apiRouter.use("/uploads", uploadsRoutes);

@@ -157,6 +157,23 @@ enum AdPaymentStatus {
   REFUNDED
 }
 
+/// What a recorded Stripe payment was for.
+enum PaymentKind {
+  SUBSCRIPTION
+  ADVERTISEMENT
+  /// Invoices raised directly in the Stripe Dashboard.
+  OTHER
+}
+
+/// Mirrors the Stripe invoice status (draft invoices are never recorded).
+enum PaymentStatus {
+  PAID
+  OPEN
+  FAILED
+  VOID
+  UNCOLLECTIBLE
+}
+
 enum AdDestinationMode {
   INTERNAL
   EXTERNAL
@@ -242,6 +259,7 @@ model User {
 
   profile      Profile?
   subscription Subscription?
+  payments     Payment[]
 
   refreshTokens       RefreshToken[]
   passwordResetTokens PasswordResetToken[]
@@ -323,6 +341,40 @@ model Subscription {
   @@index([plan])
   @@index([status])
   @@index([stripeCustomerId])
+}
+
+/// Payment history: one row per Stripe invoice, or per invoiceless one-time
+/// Checkout payment (ad fees paid before invoices were enabled). Synced from
+/// webhooks and refreshed from Stripe when a member opens their history.
+model Payment {
+  id                      String         @id @default(uuid())
+  userId                  String
+  user                    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind                    PaymentKind
+  status                  PaymentStatus
+  amount                  Int // cents: amount paid, or amount due while unpaid
+  currency                String         @default("eur")
+  description             String?
+  invoiceNumber           String?
+  stripeInvoiceId         String?        @unique
+  stripeCheckoutSessionId String?        @unique
+  stripeCustomerId        String?
+  hostedInvoiceUrl        String?
+  invoicePdfUrl           String?
+  receiptUrl              String?
+  advertisementId         String?
+  advertisement           Advertisement? @relation(fields: [advertisementId], references: [id], onDelete: SetNull)
+  periodStart             DateTime?
+  periodEnd               DateTime?
+  paidAt                  DateTime?
+  issuedAt                DateTime
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  @@index([userId, issuedAt])
+  @@index([kind])
+  @@index([status])
+  @@index([issuedAt])
 }
 
 /// Ledger of received Stripe webhook events; guarantees idempotent processing.
@@ -755,6 +807,7 @@ model Advertisement {
   paidAt                  DateTime?
   stripeCheckoutSessionId String?
   checkoutSessionExpiresAt DateTime?
+  payments        Payment[]
   views           Int        @default(0)
   clicks          Int        @default(0)
   createdAt       DateTime   @default(now())
