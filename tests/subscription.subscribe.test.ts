@@ -87,6 +87,7 @@ vi.mock("@/modules/user/subscriptions/stripeClient", () => ({
   getStripePriceId: () => "price_m",
   isPaymentConfigured: () => true,
   planFromStripePriceId: () => null,
+  checkoutTaxOptions: () => ({}),
 }));
 
 import { subscriptionsService } from "@/modules/user/subscriptions/subscriptions.service";

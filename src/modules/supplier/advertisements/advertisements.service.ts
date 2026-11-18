@@ -20,6 +20,7 @@ import { toPrismaPagination } from "@/shared/http/pagination";
 import { serializeProfile } from "@/shared/serializers/user.serializer";
 import { settingsService } from "@/modules/admin/settings/settings.service";
 import {
+  checkoutTaxOptions,
   getStripe,
   isPaymentConfigured,
 } from "@/modules/user/subscriptions/stripeClient";
@@ -612,6 +613,8 @@ export const advertisementsService = {
             price_data: {
               currency: "eur",
               unit_amount: feeCents,
+              // The fee the supplier sees is what they pay; VAT is inside it.
+              tax_behavior: "inclusive",
               product_data: {
                 name: description,
                 metadata: { adId: id },
@@ -629,6 +632,7 @@ export const advertisementsService = {
           enabled: true,
           invoice_data: { description, metadata: paymentMetadata },
         },
+        ...checkoutTaxOptions(Boolean(customer)),
       },
       { idempotencyKey: `ad_checkout_${id}_${reservationExpiry.getTime()}` },
     );

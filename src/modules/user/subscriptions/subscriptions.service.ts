@@ -6,6 +6,7 @@ import { BadRequestError, ConflictError, NotFoundError } from "@/shared/errors/A
 import { serializeSubscription } from "@/shared/serializers/user.serializer";
 import { logger } from "@/config/logger";
 import {
+  checkoutTaxOptions,
   getStripe,
   getStripePriceId,
   isPaymentConfigured,
@@ -448,6 +449,7 @@ export const subscriptionsService = {
           metadata: { userId, plan: planKey },
           subscription_data: { metadata: { userId, plan: planKey } },
           allow_promotion_codes: true,
+          ...checkoutTaxOptions(true),
         },
         // Scope idempotency to this reservation so transparent retries of the
         // create call never yield a second Checkout session.
