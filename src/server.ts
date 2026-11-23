@@ -4,7 +4,6 @@ import { logger } from "@/config/logger";
 import { connectDatabase, disconnectDatabase } from "@/infrastructure/prisma";
 import { verifyMailer } from "@/infrastructure/mailer";
 import { closeRealtime, initRealtime } from "@/realtime/socket";
-import { publicUploadRoot } from "@/middleware/upload";
 import { advertisementsService } from "@/modules/supplier/advertisements/advertisements.service";
 
 /** How often expired advertisements are swept to EXPIRED. */
@@ -15,8 +14,9 @@ const bootstrap = async (): Promise<void> => {
 
   const app = createApp();
   const server = app.listen(env.port, () => {
-    logger.info(`Server listening on port ${env.port} (${env.nodeEnv})`);
-    logger.info(`API base: ${env.apiPrefix}`);
+    const localUrl = `http://localhost:${env.port}`;
+    logger.info(`${localUrl} (${env.nodeEnv})`);
+    logger.info(`API base: ${localUrl}${env.apiPrefix}`);
     // logger.info(`Uploads: ${env.upload.publicUrl}/${env.upload.dir} -> ${publicUploadRoot}`);
     if (
       env.isProduction &&

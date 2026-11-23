@@ -40,6 +40,8 @@ const formatTimestamp = (date = new Date()): string => {
   );
 };
 
+const stamp = (): string => paint(ansi.gray, `[${formatTimestamp()}]`);
+
 const formatAccessLine = (
   statusCode: number,
   method: string,
@@ -53,9 +55,14 @@ const formatAccessLine = (
   return `${status} | ${verb}: ${path} | ${time}`;
 };
 
-const writeAccessLine = (line: string): void => {
-  const stamp = paint(ansi.gray, `[${formatTimestamp()}]`);
-  process.stdout.write(`${stamp} ${line}\n`);
+const writeLine = (line: string): void => {
+  process.stdout.write(`${stamp()} ${line}\n`);
+};
+
+type ErrorInfo = {
+  code: string;
+  message: string;
+  details?: unknown;
 };
 
 /** Compact HTTP access log: status | METHOD: url | duration. */
@@ -71,18 +78,31 @@ export const requestLogger = (
     const url = req.originalUrl || req.url;
     const line = formatAccessLine(res.statusCode, req.method, url, ms);
     const err = res.locals.error as unknown;
+    const errorInfo = res.locals.errorInfo as ErrorInfo | undefined;
     const failed = res.statusCode >= 400 || err != null;
 
     if (!failed) {
       logger.info("request completed");
-      writeAccessLine(line);
+      writeLine(line);
       return;
     }
 
-    logger.info("request incompleted");
-    writeAccessLine(line);
+    writeLine(paint(`${ansi.bold}${ansi.red}`, "request incompleted"));
+    writeLine(line);
+
+    const msg: ErrorInfo =
+      errorInfo ??
+      (typeof err === "object" && err !== null && "message" in err
+        ? {
+            code: "ERROR",
+            message: String((err as { message: unknown }).message),
+          }
+        : { code: "ERROR", message: `HTTP ${res.statusCode}` });
+
     if (res.statusCode >= 500 && err != null) {
-      logger.error({ err }, "request error");
+      logger.error({ msg, err }, msg.message);
+    } else {
+      logger.error({ msg }, msg.message);
     }
   });
 

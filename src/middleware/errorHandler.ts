@@ -102,8 +102,13 @@ export const errorHandler = (
 ): void => {
   const normalized = normalize(err);
 
-  // Stash for the request logger so 4xx/5xx lines include the stack/location.
+  // Stash for the compact request logger (message object + stack on 5xx).
   res.locals.error = err;
+  res.locals.errorInfo = {
+    code: normalized.code,
+    message: normalized.message,
+    ...(normalized.details ? { details: normalized.details } : {}),
+  };
 
   res.status(normalized.statusCode).json({
     success: false,
