@@ -6,7 +6,6 @@ import { JsonWebTokenError, TokenExpiredError } from "jsonwebtoken";
 import { MulterError } from "multer";
 import { env } from "@/config/env";
 import { AppError } from "@/shared/errors/AppError";
-import { logger } from "@/config/logger";
 
 interface NormalizedError {
   statusCode: number;
@@ -103,9 +102,8 @@ export const errorHandler = (
 ): void => {
   const normalized = normalize(err);
 
-  if (normalized.statusCode >= 500) {
-    logger.error({ err }, "Unhandled error");
-  }
+  // Stash for the request logger so 4xx/5xx lines include the stack/location.
+  res.locals.error = err;
 
   res.status(normalized.statusCode).json({
     success: false,
