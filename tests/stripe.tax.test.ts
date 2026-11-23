@@ -14,8 +14,8 @@ afterEach(() => {
 
 // The first dynamic import loads the module graph cold, which can be slow.
 describe("checkoutTaxOptions", { timeout: 30_000 }, () => {
-  it("adds nothing unless Stripe Tax is switched on", async () => {
-    expect((await loadWithFlag(undefined)).checkoutTaxOptions(true)).toEqual({});
+  it("is on by default and only switched off with false", async () => {
+    expect((await loadWithFlag(undefined)).checkoutTaxOptions(true).automatic_tax).toEqual({ enabled: true });
     expect((await loadWithFlag("false")).checkoutTaxOptions(true)).toEqual({});
   });
 

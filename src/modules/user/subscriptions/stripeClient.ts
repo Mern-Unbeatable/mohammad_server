@@ -45,8 +45,8 @@ type CheckoutTaxOptions = Pick<
  * STRIPE_AUTOMATIC_TAX=true, Checkout shows the VAT line, collects the
  * billing address it needs to pick the rate, and lets companies enter their
  * VAT number (shown on the invoice; EU reverse charge applies to valid
- * foreign VAT numbers). Off by default so accounts without Stripe Tax keep
- * working. An existing Stripe customer must let Checkout save the address
+ * foreign VAT numbers). On by default; STRIPE_AUTOMATIC_TAX=false turns it
+ * off for accounts without Stripe Tax. An existing Stripe customer must let Checkout save the address
  * and name it collects (`customer_update`).
  */
 export function checkoutTaxOptions(hasCustomer: boolean): CheckoutTaxOptions {

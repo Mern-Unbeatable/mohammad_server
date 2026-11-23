@@ -120,7 +120,7 @@ export const env = {
     priceMonthly: optional("STRIPE_PRICE_MONTHLY", ""),
     priceYearly: optional("STRIPE_PRICE_YEARLY", ""),
     /** Stripe Tax on Checkout (VAT line, billing address, business VAT number). Needs Stripe Tax set up on the account. */
-    automaticTax: optional("STRIPE_AUTOMATIC_TAX", "false").toLowerCase() === "true",
+    automaticTax: optional("STRIPE_AUTOMATIC_TAX", "true").toLowerCase() !== "false",
     clientUrl,
   },
   /** ICE servers for WebRTC voice calls. TURN credentials stay server-side and are handed to authenticated clients only. */
