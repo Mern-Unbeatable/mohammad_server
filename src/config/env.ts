@@ -1,4 +1,7 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> main
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -120,6 +123,8 @@ export const env = {
     webhookSecret: optional("STRIPE_WEBHOOK_SECRET", ""),
     priceMonthly: optional("STRIPE_PRICE_MONTHLY", ""),
     priceYearly: optional("STRIPE_PRICE_YEARLY", ""),
+    /** Stripe Tax on Checkout (VAT line, billing address, business VAT number). Needs Stripe Tax set up on the account. */
+    automaticTax: optional("STRIPE_AUTOMATIC_TAX", "true").toLowerCase() !== "false",
     clientUrl,
   },
   /** ICE servers for WebRTC voice calls. TURN credentials stay server-side and are handed to authenticated clients only. */
@@ -138,6 +143,7 @@ export const env = {
 } as const;
 
 export type Env = typeof env;
+<<<<<<< HEAD
 =======
 import dotenv from "dotenv";
 
@@ -281,3 +287,5 @@ export const env = {
 
 export type Env = typeof env;
 >>>>>>> 549ae48d8efd3a831b08b57988b9daf09dfc2891
+=======
+>>>>>>> main

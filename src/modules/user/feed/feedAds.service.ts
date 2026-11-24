@@ -55,7 +55,7 @@ async function expireStaleAds() {
       where: { status: AdStatus.ACTIVE, expiryDate: { lt: new Date() } },
       data: { status: AdStatus.EXPIRED },
     });
-  } catch (err) {
+  } catch {
     // Silent failure for expiration; non-critical for feed display
   }
 }

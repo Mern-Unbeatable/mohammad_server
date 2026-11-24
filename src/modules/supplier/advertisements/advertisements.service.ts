@@ -1,4 +1,7 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> main
 import {
   AdCategory,
   AdDestinationMode,
@@ -21,6 +24,7 @@ import { toPrismaPagination } from "@/shared/http/pagination";
 import { serializeProfile } from "@/shared/serializers/user.serializer";
 import { settingsService } from "@/modules/admin/settings/settings.service";
 import {
+  checkoutTaxOptions,
   getStripe,
   isPaymentConfigured,
 } from "@/modules/user/subscriptions/stripeClient";
@@ -613,6 +617,8 @@ export const advertisementsService = {
             price_data: {
               currency: "eur",
               unit_amount: feeCents,
+              // The fee the supplier sees is what they pay; VAT is inside it.
+              tax_behavior: "inclusive",
               product_data: {
                 name: description,
                 metadata: { adId: id },
@@ -630,6 +636,7 @@ export const advertisementsService = {
           enabled: true,
           invoice_data: { description, metadata: paymentMetadata },
         },
+        ...checkoutTaxOptions(Boolean(customer)),
       },
       { idempotencyKey: `ad_checkout_${id}_${reservationExpiry.getTime()}` },
     );
@@ -802,6 +809,7 @@ export const advertisementsService = {
   /** Periodic sweep hook used by the server bootstrap. */
   expireStaleAds,
 };
+<<<<<<< HEAD
 =======
 import {
   AdCategory,
@@ -1611,3 +1619,5 @@ export const advertisementsService = {
   expireStaleAds,
 };
 >>>>>>> 549ae48d8efd3a831b08b57988b9daf09dfc2891
+=======
+>>>>>>> main

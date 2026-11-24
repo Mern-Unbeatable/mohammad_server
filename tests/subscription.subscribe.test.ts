@@ -1,4 +1,7 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> main
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SubscriptionPlan, SubscriptionStatus } from "@prisma/client";
 
@@ -88,6 +91,7 @@ vi.mock("@/modules/user/subscriptions/stripeClient", () => ({
   getStripePriceId: () => "price_m",
   isPaymentConfigured: () => true,
   planFromStripePriceId: () => null,
+  checkoutTaxOptions: () => ({}),
 }));
 
 import { subscriptionsService } from "@/modules/user/subscriptions/subscriptions.service";
@@ -118,6 +122,7 @@ describe("subscribe() with a stale Stripe customer", () => {
     expect(state.row.stripeCustomerId).toBe("cus_new");
   });
 });
+<<<<<<< HEAD
 =======
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SubscriptionPlan, SubscriptionStatus } from "@prisma/client";
@@ -240,3 +245,5 @@ describe("subscribe() with a stale Stripe customer", () => {
   });
 });
 >>>>>>> 549ae48d8efd3a831b08b57988b9daf09dfc2891
+=======
+>>>>>>> main

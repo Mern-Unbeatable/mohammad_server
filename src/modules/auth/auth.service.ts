@@ -263,7 +263,15 @@ export const authService = {
         profile: { select: { firstName: true } },
       },
     });
-    if (!user || user.status === "BANNED") return;
+    if (!user) {
+      // Same client response either way; log only for server diagnostics.
+      logger.info({ email }, "Password reset skipped — no matching account");
+      return;
+    }
+    if (user.status === "BANNED") {
+      logger.info({ userId: user.id }, "Password reset skipped — banned account");
+      return;
+    }
 
     const now = new Date();
     const recent = await prisma.passwordResetToken.findFirst({
@@ -276,10 +284,18 @@ export const authService = {
       },
       select: { id: true },
     });
-    if (recent) return;
+    if (recent) {
+      logger.info(
+        { userId: user.id },
+        "Password reset skipped — cooldown still active",
+      );
+      return;
+    }
 
     const token = crypto.randomBytes(32).toString("hex");
     const tokenHash = hashToken(token);
+    // Path form avoids email-client redirects mangling `?token=` query strings.
+    const resetUrl = `${env.frontendUrl}/reset-password/${token}`;
 
     await prisma.$transaction([
       prisma.passwordResetToken.deleteMany({ where: { userId: user.id } }),
@@ -298,20 +314,25 @@ export const authService = {
       await sendMail(
         buildPasswordResetEmail({
           to: user.email,
-          resetUrl: `${env.frontendUrl}/reset-password?token=${token}`,
+          resetUrl,
           ttlMinutes: env.passwordResetTtlMinutes,
           firstName: user.profile?.firstName,
         }),
       );
+      logger.info(
+        { userId: user.id, to: user.email, frontendUrl: env.frontendUrl },
+        "Password reset email sent",
+      );
     } catch (error) {
       // Drop the undelivered token so the cooldown doesn't block a retry.
       await prisma.passwordResetToken.deleteMany({ where: { tokenHash } });
-      const { code, responseCode } = (error ?? {}) as {
+      const { code, responseCode, message } = (error ?? {}) as {
         code?: string;
         responseCode?: number;
+        message?: string;
       };
       logger.error(
-        { userId: user.id, code, responseCode },
+        { userId: user.id, code, responseCode, message },
         "Failed to send password reset email",
       );
     }
@@ -320,7 +341,13 @@ export const authService = {
   /** Lets the reset page show an expired/invalid state before the form is filled. */
   async verifyResetToken(token: string) {
     const stored = await findUsableResetToken(token);
-    if (!stored) throw new BadRequestError(INVALID_RESET_TOKEN_MESSAGE);
+    if (!stored) {
+      logger.info(
+        { tokenLength: token?.length ?? 0 },
+        "Password reset token rejected — missing, used, or expired",
+      );
+      throw new BadRequestError(INVALID_RESET_TOKEN_MESSAGE);
+    }
     return { valid: true, expiresAt: stored.expiresAt };
   },
 

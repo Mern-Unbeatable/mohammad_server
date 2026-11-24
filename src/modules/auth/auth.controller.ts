@@ -44,8 +44,7 @@ export const authController = {
     await authService.forgotPassword(req.body);
     sendSuccess(res, {
       data: {
-        message:
-          "If an account exists for that email, a password reset link has been sent.",
+        message: "Password reset link has been sent.",
       },
     });
   }),
