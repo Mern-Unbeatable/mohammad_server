@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import {
   AdCategory,
   AdDestinationMode,
@@ -801,3 +802,812 @@ export const advertisementsService = {
   /** Periodic sweep hook used by the server bootstrap. */
   expireStaleAds,
 };
+=======
+import {
+  AdCategory,
+  AdDestinationMode,
+  AdPaymentStatus,
+  AdStatus,
+  Prisma,
+  Role,
+} from "@prisma/client";
+import type Stripe from "stripe";
+import { prisma } from "@/infrastructure/prisma";
+import { env } from "@/config/env";
+import { logger } from "@/config/logger";
+import {
+  BadRequestError,
+  ForbiddenError,
+  NotFoundError,
+} from "@/shared/errors/AppError";
+import { buildPaginationMeta } from "@/shared/http/apiResponse";
+import { toPrismaPagination } from "@/shared/http/pagination";
+import { serializeProfile } from "@/shared/serializers/user.serializer";
+import { settingsService } from "@/modules/admin/settings/settings.service";
+import {
+  checkoutTaxOptions,
+  getStripe,
+  isPaymentConfigured,
+} from "@/modules/user/subscriptions/stripeClient";
+import { ensureStripeCustomer } from "@/modules/user/subscriptions/subscriptions.service";
+import { recordAdCheckoutSession } from "@/modules/payments/payments.sync";
+import type { AdListQuery } from "./advertisements.validators";
+
+const include = {
+  supplier: { include: { profile: true } },
+} satisfies Prisma.AdvertisementInclude;
+type Payload = Prisma.AdvertisementGetPayload<{ include: typeof include }>;
+
+/** How long a single in-flight Checkout reservation is reused before lapsing. */
+const CHECKOUT_RESERVATION_MS = 30 * 60 * 1000;
+
+const serialize = (ad: Payload) => ({
+  id: ad.id,
+  title: ad.title,
+  category: ad.category,
+  description: ad.description,
+  destinationMode: ad.destinationMode,
+  destinationResourceId: ad.destinationResourceId,
+  destinationUrl: ad.destinationUrl,
+  imageUrl: ad.imageUrl,
+  videoUrl: ad.videoUrl,
+  price: ad.price === null ? null : ad.price / 100,
+  fee: ad.feeAmount === null ? null : ad.feeAmount / 100,
+  paymentStatus: ad.paymentStatus,
+  paidAt: ad.paidAt,
+  contact: ad.contact,
+  location: ad.location,
+  eventDate: ad.eventDate,
+  eventTime: ad.eventTime,
+  organizer: ad.organizer,
+  durationDays: ad.durationDays,
+  startDate: ad.startDate,
+  expiryDate: ad.expiryDate,
+  status: ad.status,
+  rejectionReason: ad.rejectionReason,
+  views: ad.views,
+  clicks: ad.clicks,
+  uploadDate: ad.createdAt,
+  supplier: {
+    id: ad.supplier.id,
+    company: ad.supplier.profile?.company ?? null,
+    ...(ad.supplier.profile ? serializeProfile(ad.supplier.profile) : {}),
+  },
+});
+
+/** Content fields that, when changed on a reviewed ad, force re-moderation. */
+const CONTENT_FIELDS = [
+  "title",
+  "category",
+  "description",
+  "imageUrl",
+  "videoUrl",
+  "price",
+  "contact",
+  "location",
+  "eventDate",
+  "eventTime",
+  "organizer",
+  "destinationMode",
+  "destinationResourceId",
+  "destinationUrl",
+] as const;
+
+/**
+ * Flip ACTIVE ads whose paid window has elapsed to EXPIRED. Called
+ * opportunistically on reads and on a timer so listings stay truthful without
+ * relying solely on admin action.
+ */
+async function expireStaleAds() {
+  try {
+    await prisma.advertisement.updateMany({
+      where: { status: AdStatus.ACTIVE, expiryDate: { lt: new Date() } },
+      data: { status: AdStatus.EXPIRED },
+    });
+  } catch (err) {
+    logger.warn({ err }, "Failed to expire stale advertisements");
+  }
+}
+
+// ── Engagement de-duplication ──────────────────────────────────────────────
+// Lightweight in-memory guard: the same actor cannot inflate the same metric
+// on the same ad more than once per window. Sufficient for a single-node
+// deployment; a shared store would be needed when horizontally scaled.
+const TRACK_WINDOW_MS = 30 * 60 * 1000;
+const trackSeen = new Map<string, number>();
+
+function trackAllowed(key: string): boolean {
+  const now = Date.now();
+  const last = trackSeen.get(key);
+  if (last && now - last < TRACK_WINDOW_MS) return false;
+  trackSeen.set(key, now);
+  if (trackSeen.size > 10_000) {
+    for (const [k, t] of trackSeen) {
+      if (now - t > TRACK_WINDOW_MS) trackSeen.delete(k);
+    }
+  }
+  return true;
+}
+
+async function loadOwned(userId: string, id: string) {
+  const ad = await prisma.advertisement.findUnique({ where: { id } });
+  if (!ad) throw new NotFoundError("Advertisement not found");
+  if (ad.supplierId !== userId) {
+    throw new ForbiddenError("You can only manage your own ads");
+  }
+  return ad;
+}
+
+const isHttpUrl = (value: string) => /^https?:\/\//i.test(value);
+
+type DestinationValidationInput = {
+  supplierId: string;
+  category: AdCategory;
+  destinationMode?: AdDestinationMode | string | null;
+  destinationResourceId?: string | null;
+  destinationUrl?: string | null;
+};
+
+async function normalizeDestination(input: DestinationValidationInput) {
+  const destinationMode =
+    input.destinationMode === AdDestinationMode.EXTERNAL
+      ? AdDestinationMode.EXTERNAL
+      : input.destinationMode === AdDestinationMode.INTERNAL
+        ? AdDestinationMode.INTERNAL
+        : null;
+
+  if (!destinationMode) {
+    throw new BadRequestError("Destination selection is required");
+  }
+
+  if (destinationMode === AdDestinationMode.EXTERNAL) {
+    const destinationUrl = String(input.destinationUrl || "").trim();
+    if (!destinationUrl || !isHttpUrl(destinationUrl)) {
+      throw new BadRequestError(
+        "External destinations must use a valid HTTP/HTTPS URL",
+      );
+    }
+    return {
+      destinationMode,
+      destinationResourceId: null,
+      destinationUrl,
+    };
+  }
+
+  if (input.category === AdCategory.SERVICE) {
+    const supplier = await prisma.user.findUnique({
+      where: { id: input.supplierId },
+      select: { id: true, role: true },
+    });
+    if (!supplier || supplier.role !== Role.SUPPLIER) {
+      throw new BadRequestError("Supplier profile destination is invalid");
+    }
+    return {
+      destinationMode,
+      destinationResourceId: input.supplierId,
+      destinationUrl: null,
+    };
+  }
+
+  const resourceId = String(input.destinationResourceId || "").trim();
+  if (!resourceId) {
+    throw new BadRequestError("Internal destinations require a resource");
+  }
+
+  if (input.category === AdCategory.PRODUCT) {
+    const listing = await prisma.listing.findUnique({
+      where: { id: resourceId },
+      select: { id: true, sellerId: true },
+    });
+    if (!listing || listing.sellerId !== input.supplierId) {
+      throw new BadRequestError("Selected product does not belong to supplier");
+    }
+  } else {
+    const post = await prisma.generalPost.findUnique({
+      where: { id: resourceId },
+      select: { id: true, authorId: true },
+    });
+    if (!post || post.authorId !== input.supplierId) {
+      throw new BadRequestError(
+        input.category === AdCategory.PROMO
+          ? "Selected offer does not belong to supplier"
+          : "Selected event does not belong to supplier",
+      );
+    }
+  }
+
+  return {
+    destinationMode,
+    destinationResourceId: resourceId,
+    destinationUrl: null,
+  };
+}
+
+async function buildCtaRedirectUrl(ad: {
+  category: AdCategory;
+  destinationMode: AdDestinationMode;
+  destinationResourceId: string | null;
+  destinationUrl: string | null;
+  supplierId: string;
+}) {
+  if (ad.destinationMode === AdDestinationMode.EXTERNAL) {
+    const url = String(ad.destinationUrl || "").trim();
+    if (!url || !isHttpUrl(url)) {
+      throw new BadRequestError("Invalid external destination URL");
+    }
+    return url;
+  }
+
+  if (ad.category === AdCategory.SERVICE) {
+    return `/contacts/${ad.destinationResourceId || ad.supplierId}`;
+  }
+
+  const resourceId = String(ad.destinationResourceId || "").trim();
+  if (!resourceId) {
+    return `/contacts/${ad.supplierId}`;
+  }
+
+  if (ad.category === AdCategory.PRODUCT) {
+    const listing = await prisma.listing.findUnique({
+      where: { id: resourceId },
+      select: { id: true, sellerId: true },
+    });
+    if (!listing || listing.sellerId !== ad.supplierId) {
+      throw new NotFoundError("Destination product not found");
+    }
+    return `/marketplace/${listing.id}`;
+  }
+
+  const post = await prisma.generalPost.findUnique({
+    where: { id: resourceId },
+    select: { id: true, authorId: true },
+  });
+  if (!post || post.authorId !== ad.supplierId) {
+    throw new NotFoundError("Destination post not found");
+  }
+  return `/general/${post.id}`;
+}
+
+async function markAdPaid(ad: { id: string; status: AdStatus }) {
+  const data: Prisma.AdvertisementUpdateInput = {
+    paymentStatus: AdPaymentStatus.PAID,
+    paidAt: new Date(),
+    checkoutSessionExpiresAt: null,
+  };
+  // Payment settled → advance the unpaid draft into the approval queue.
+  if (ad.status === AdStatus.PENDING_PAYMENT) {
+    data.status = AdStatus.PENDING;
+  }
+  return prisma.advertisement.update({
+    where: { id: ad.id },
+    data,
+    include,
+  });
+}
+
+export const advertisementsService = {
+  async list(userId: string, role: string, query: AdListQuery) {
+    await expireStaleAds();
+    const { skip, take } = toPrismaPagination(query.page, query.pageSize);
+
+    // Suppliers only ever see their own ads; admins see everything.
+    const scope: Prisma.AdvertisementWhereInput =
+      role === "ADMIN" ? {} : { supplierId: userId };
+
+    const where: Prisma.AdvertisementWhereInput = {
+      ...scope,
+      ...(query.mine ? { supplierId: userId } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.category ? { category: query.category } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { title: { contains: query.search, mode: "insensitive" } },
+              { description: { contains: query.search, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    };
+
+    const [rows, total] = await prisma.$transaction([
+      prisma.advertisement.findMany({
+        where,
+        include,
+        orderBy: { createdAt: query.sort },
+        skip,
+        take,
+      }),
+      prisma.advertisement.count({ where }),
+    ]);
+
+    return {
+      data: rows.map(serialize),
+      meta: buildPaginationMeta(query.page, query.pageSize, total),
+    };
+  },
+
+  /** Publicly visible active ads for display on the site. */
+  async listActive(query: AdListQuery) {
+    await expireStaleAds();
+    const { skip, take } = toPrismaPagination(query.page, query.pageSize);
+    const where: Prisma.AdvertisementWhereInput = {
+      status: AdStatus.ACTIVE,
+      // Never surface ads past their paid window, even if the sweep lagged.
+      OR: [{ expiryDate: null }, { expiryDate: { gt: new Date() } }],
+      ...(query.category ? { category: query.category } : {}),
+    };
+    const [rows, total] = await prisma.$transaction([
+      prisma.advertisement.findMany({
+        where,
+        include,
+        orderBy: { createdAt: query.sort },
+        skip,
+        take,
+      }),
+      prisma.advertisement.count({ where }),
+    ]);
+    return {
+      data: rows.map(serialize),
+      meta: buildPaginationMeta(query.page, query.pageSize, total),
+    };
+  },
+
+  async getById(userId: string, role: string, id: string) {
+    const ad = await prisma.advertisement.findUnique({
+      where: { id },
+      include,
+    });
+    if (!ad) throw new NotFoundError("Advertisement not found");
+    if (
+      role !== "ADMIN" &&
+      ad.supplierId !== userId &&
+      ad.status !== AdStatus.ACTIVE
+    ) {
+      throw new ForbiddenError("You cannot view this advertisement");
+    }
+    return serialize(ad);
+  },
+
+  async create(
+    supplierId: string,
+    input: {
+      price?: number;
+      durationDays: number;
+      title: string;
+      description: string;
+      category: AdCategory;
+      destinationMode: AdDestinationMode;
+      destinationResourceId?: string;
+      destinationUrl?: string;
+      [key: string]: unknown;
+    },
+  ) {
+    const {
+      price,
+      durationDays,
+      category,
+      destinationMode,
+      destinationResourceId,
+      destinationUrl,
+      ...rest
+    } = input;
+    const destination = await normalizeDestination({
+      supplierId,
+      category,
+      destinationMode,
+      destinationResourceId,
+      destinationUrl,
+    });
+
+    // Idempotency guard: an accidental double-submit (double click, retry,
+    // refresh mid-request) must not create two draft ads. Reuse any identical
+    // unpaid draft created by the same supplier in the last 60 seconds.
+    const recent = await prisma.advertisement.findFirst({
+      where: {
+        supplierId,
+        title: input.title,
+        description: input.description,
+        category: input.category,
+        destinationMode: destination.destinationMode,
+        destinationResourceId: destination.destinationResourceId,
+        destinationUrl: destination.destinationUrl,
+        status: AdStatus.PENDING_PAYMENT,
+        createdAt: { gt: new Date(Date.now() - 60_000) },
+      },
+      include,
+      orderBy: { createdAt: "desc" },
+    });
+    if (recent) return serialize(recent);
+
+    // Server-authoritative advertising fee from the sponsored pricing tier.
+    const { feeCents } = await settingsService.getSponsoredFeeCents(
+      durationDays,
+    );
+
+    const ad = await prisma.advertisement.create({
+      data: {
+        ...(rest as Prisma.AdvertisementUncheckedCreateInput),
+        title: input.title,
+        category: input.category,
+        description: input.description,
+        supplierId,
+        destinationMode: destination.destinationMode,
+        destinationResourceId: destination.destinationResourceId,
+        destinationUrl: destination.destinationUrl,
+        durationDays,
+        price: price === undefined ? null : Math.round(price * 100),
+        feeAmount: feeCents,
+        paymentStatus: AdPaymentStatus.UNPAID,
+        status: AdStatus.PENDING_PAYMENT,
+      },
+      include,
+    });
+    return serialize(ad);
+  },
+
+  async update(userId: string, id: string, input: Record<string, unknown>) {
+    const ad = await loadOwned(userId, id);
+    if (ad.status === AdStatus.CANCELLED) {
+      throw new BadRequestError("A cancelled advertisement cannot be edited");
+    }
+
+    const data: Prisma.AdvertisementUpdateInput = { ...input };
+    if (typeof input.price === "number")
+      data.price = Math.round(input.price * 100);
+
+    const category = (input.category as AdCategory | undefined) ?? ad.category;
+    const destination = await normalizeDestination({
+      supplierId: ad.supplierId,
+      category,
+      destinationMode:
+        (input.destinationMode as AdDestinationMode | undefined) ??
+        ad.destinationMode,
+      destinationResourceId:
+        input.destinationResourceId === undefined
+          ? ad.destinationResourceId
+          : (input.destinationResourceId as string | null),
+      destinationUrl:
+        input.destinationUrl === undefined
+          ? ad.destinationUrl
+          : (input.destinationUrl as string | null),
+    });
+    data.destinationMode = destination.destinationMode;
+    data.destinationResourceId = destination.destinationResourceId;
+    data.destinationUrl = destination.destinationUrl;
+
+    const durationChanged =
+      typeof input.durationDays === "number" &&
+      input.durationDays !== ad.durationDays;
+
+    if (durationChanged) {
+      // Changing the duration changes the advertising fee, so the ad must be
+      // (re)paid before it can go live again.
+      const { feeCents } = await settingsService.getSponsoredFeeCents(
+        input.durationDays as number,
+      );
+      data.feeAmount = feeCents;
+      data.paymentStatus = AdPaymentStatus.UNPAID;
+      data.paidAt = null;
+      data.status = AdStatus.PENDING_PAYMENT;
+      data.rejectionReason = null;
+      data.stripeCheckoutSessionId = null;
+      data.checkoutSessionExpiresAt = null;
+    } else {
+      const contentChanged = CONTENT_FIELDS.some((field) => field in input);
+      // Editing content on a reviewed ad sends it back through moderation.
+      // Already-paid ads keep their paid status; unpaid drafts stay unpaid.
+      if (
+        contentChanged &&
+        (ad.status === AdStatus.ACTIVE ||
+          ad.status === AdStatus.EXPIRED ||
+          ad.status === AdStatus.REJECTED)
+      ) {
+        data.status = AdStatus.PENDING;
+        data.rejectionReason = null;
+      }
+    }
+
+    const updated = await prisma.advertisement.update({
+      where: { id },
+      data,
+      include,
+    });
+    return serialize(updated);
+  },
+
+  async remove(userId: string, role: string, id: string) {
+    const ad = await prisma.advertisement.findUnique({ where: { id } });
+    if (!ad) throw new NotFoundError("Advertisement not found");
+    if (ad.supplierId !== userId && role !== "ADMIN") {
+      throw new ForbiddenError("You can only delete your own ads");
+    }
+    await prisma.advertisement.delete({ where: { id } });
+  },
+
+  /** Supplier withdraws an ad from circulation / the review queue. */
+  async cancel(userId: string, id: string) {
+    const ad = await loadOwned(userId, id);
+    if (ad.status === AdStatus.CANCELLED) {
+      return serialize(
+        await prisma.advertisement.findUniqueOrThrow({ where: { id }, include }),
+      );
+    }
+    const updated = await prisma.advertisement.update({
+      where: { id },
+      data: { status: AdStatus.CANCELLED },
+      include,
+    });
+    return serialize(updated);
+  },
+
+  // ── Payment (Stripe one-time Checkout) ────────────────────────────────────
+
+  /**
+   * Start a Stripe Checkout session for the advertising fee. The ad is never
+   * advanced out of PENDING_PAYMENT until the webhook (or confirm) verifies the
+   * payment succeeded. Reuses a still-valid in-flight session on retry.
+   */
+  async startCheckout(userId: string, id: string) {
+    if (!isPaymentConfigured()) {
+      throw new BadRequestError("Stripe payment is not configured");
+    }
+    const ad = await loadOwned(userId, id);
+
+    if (ad.paymentStatus === AdPaymentStatus.PAID) {
+      throw new BadRequestError("This advertisement is already paid");
+    }
+    if (ad.status === AdStatus.CANCELLED) {
+      throw new BadRequestError("A cancelled advertisement cannot be paid");
+    }
+
+    const feeCents =
+      ad.feeAmount ??
+      (await settingsService.getSponsoredFeeCents(ad.durationDays)).feeCents;
+
+    const stripe = getStripe();
+    const now = new Date();
+
+    // Reuse a still-open session so a retry doesn't create duplicate sessions.
+    if (
+      ad.stripeCheckoutSessionId &&
+      ad.checkoutSessionExpiresAt &&
+      ad.checkoutSessionExpiresAt.getTime() > now.getTime()
+    ) {
+      try {
+        const existing = await stripe.checkout.sessions.retrieve(
+          ad.stripeCheckoutSessionId,
+        );
+        if (existing.status === "open" && existing.url) {
+          return {
+            mode: "checkout" as const,
+            checkoutUrl: existing.url,
+            sessionId: existing.id,
+          };
+        }
+      } catch (err) {
+        logger.warn(
+          { adId: id, sessionId: ad.stripeCheckoutSessionId, err },
+          "Failed to reuse ad checkout session; creating a new one",
+        );
+      }
+    }
+
+    const reservationExpiry = new Date(now.getTime() + CHECKOUT_RESERVATION_MS);
+    const base = env.stripe.clientUrl.replace(/\/$/, "");
+    const successUrl = `${base}/supplier/ads?checkout=success&ad=${id}&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${base}/supplier/ads?checkout=cancelled&ad=${id}`;
+
+    // Bill the supplier's own Stripe customer so the fee lands in their
+    // payment history; without one Stripe still invoices a guest customer.
+    let customer: string | undefined;
+    try {
+      customer = await ensureStripeCustomer(userId);
+    } catch (err) {
+      logger.warn({ userId, err }, "No Stripe customer for ad checkout; using a guest customer");
+    }
+    const description = `Sponsored advertisement — ${ad.durationDays} days`;
+    const paymentMetadata = { kind: "ad", adId: id, userId };
+
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: "payment",
+        ...(customer ? { customer } : {}),
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: "eur",
+              unit_amount: feeCents,
+              // The fee the supplier sees is what they pay; VAT is inside it.
+              tax_behavior: "inclusive",
+              product_data: {
+                name: description,
+                metadata: { adId: id },
+              },
+            },
+          },
+        ],
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        client_reference_id: userId,
+        metadata: paymentMetadata,
+        payment_intent_data: { metadata: paymentMetadata },
+        // Issue a Stripe invoice (PDF + hosted page) for the fee.
+        invoice_creation: {
+          enabled: true,
+          invoice_data: { description, metadata: paymentMetadata },
+        },
+        ...checkoutTaxOptions(Boolean(customer)),
+      },
+      { idempotencyKey: `ad_checkout_${id}_${reservationExpiry.getTime()}` },
+    );
+
+    if (!session.url) {
+      throw new BadRequestError("Stripe did not return a Checkout URL");
+    }
+
+    await prisma.advertisement.update({
+      where: { id },
+      data: {
+        feeAmount: feeCents,
+        stripeCheckoutSessionId: session.id,
+        checkoutSessionExpiresAt: reservationExpiry,
+      },
+    });
+
+    return {
+      mode: "checkout" as const,
+      checkoutUrl: session.url,
+      sessionId: session.id,
+    };
+  },
+
+  /** After returning from Checkout, confirm payment in case the webhook lagged. */
+  async confirmCheckout(userId: string, id: string, sessionId: string) {
+    if (!isPaymentConfigured()) {
+      throw new BadRequestError("Stripe payment is not configured");
+    }
+    const ad = await loadOwned(userId, id);
+
+    const stripe = getStripe();
+    let session: Stripe.Checkout.Session;
+    try {
+      session = await stripe.checkout.sessions.retrieve(sessionId);
+    } catch {
+      throw new BadRequestError("Invalid or unknown checkout session");
+    }
+
+    if (session.metadata?.adId && session.metadata.adId !== id) {
+      throw new BadRequestError("Checkout session does not belong to this ad");
+    }
+    if (session.metadata?.userId && session.metadata.userId !== userId) {
+      throw new BadRequestError("Checkout session does not belong to this user");
+    }
+
+    if (session.payment_status === "paid") {
+      const paid = await markAdPaid(ad);
+      await recordAdCheckoutSession(session).catch((err) =>
+        logger.warn({ adId: id, sessionId, err }, "Could not record ad payment"),
+      );
+      return serialize(paid);
+    }
+
+    return serialize(
+      await prisma.advertisement.findUniqueOrThrow({ where: { id }, include }),
+    );
+  },
+
+  /** Webhook entrypoint: apply a verified ad Checkout session. Idempotent. */
+  async applyAdCheckoutSession(session: Stripe.Checkout.Session) {
+    const adId = session.metadata?.adId;
+    if (!adId || session.payment_status !== "paid") return null;
+
+    const ad = await prisma.advertisement.findUnique({ where: { id: adId } });
+    if (!ad) return null;
+    if (ad.paymentStatus === AdPaymentStatus.PAID) return null; // already applied
+
+    return markAdPaid(ad);
+  },
+
+  /** Admin approval workflow: activate (sets live window), reject, or expire. */
+  async review(id: string, status: AdStatus, rejectionReason?: string) {
+    const ad = await prisma.advertisement.findUnique({ where: { id } });
+    if (!ad) throw new NotFoundError("Advertisement not found");
+
+    if (status === AdStatus.ACTIVE && ad.status === AdStatus.PENDING_PAYMENT) {
+      throw new BadRequestError(
+        "This advertisement has not been paid for and cannot be activated",
+      );
+    }
+
+    if (status === AdStatus.REJECTED && !rejectionReason) {
+      throw new BadRequestError("A rejection reason is required");
+    }
+
+    const now = new Date();
+    const data: Prisma.AdvertisementUpdateInput = { status };
+    if (status === AdStatus.ACTIVE) {
+      data.startDate = now;
+      data.expiryDate = new Date(
+        now.getTime() + ad.durationDays * 24 * 60 * 60 * 1000,
+      );
+      data.rejectionReason = null;
+    }
+    if (status === AdStatus.REJECTED) {
+      data.rejectionReason = rejectionReason;
+    }
+
+    const updated = await prisma.advertisement.update({
+      where: { id },
+      data,
+      include,
+    });
+
+    await prisma.notification.create({
+      data: {
+        userId: ad.supplierId,
+        type:
+          status === AdStatus.ACTIVE
+            ? "AD_APPROVED"
+            : status === AdStatus.REJECTED
+              ? "AD_REJECTED"
+              : "SYSTEM",
+        title:
+          status === AdStatus.ACTIVE
+            ? "Advertisement approved"
+            : status === AdStatus.REJECTED
+              ? "Advertisement rejected"
+              : "Advertisement updated",
+        subtitle: status === AdStatus.REJECTED ? rejectionReason : ad.title,
+        link: `/supplier/ads/${id}`,
+      },
+    });
+
+    return serialize(updated);
+  },
+
+  async cta(id: string, actorKey: string) {
+    const ad = await prisma.advertisement.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        expiryDate: true,
+        category: true,
+        supplierId: true,
+        destinationMode: true,
+        destinationResourceId: true,
+        destinationUrl: true,
+      },
+    });
+    if (!ad || ad.status !== AdStatus.ACTIVE) {
+      throw new NotFoundError("Advertisement not found");
+    }
+    if (ad.expiryDate && ad.expiryDate <= new Date()) {
+      throw new NotFoundError("Advertisement has expired");
+    }
+
+    const redirectUrl = await buildCtaRedirectUrl(ad);
+    await advertisementsService.track(id, "clicks", actorKey);
+    return { redirectUrl };
+  },
+
+  /** Increments a lightweight engagement metric on an active ad (de-duplicated). */
+  async track(id: string, metric: "views" | "clicks", actorKey: string) {
+    if (!trackAllowed(`${id}:${metric}:${actorKey}`)) {
+      return;
+    }
+    await prisma.advertisement.updateMany({
+      where: {
+        id,
+        status: AdStatus.ACTIVE,
+        OR: [{ expiryDate: null }, { expiryDate: { gt: new Date() } }],
+      },
+      data: { [metric]: { increment: 1 } },
+    });
+  },
+
+  /** Periodic sweep hook used by the server bootstrap. */
+  expireStaleAds,
+};
+>>>>>>> 549ae48d8efd3a831b08b57988b9daf09dfc2891
