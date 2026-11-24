@@ -150,16 +150,28 @@ export const dashboardService = {
             ),
           };
         }),
-        ads: recentAds.map((ad) => ({
-          id: ad.id,
-          title: ad.title,
-          category: ad.category,
-          createdAt: ad.createdAt,
-          supplier:
-            ad.supplier.profile?.company ||
+        ads: recentAds.map((ad) => {
+          const supplierName =
             personName(ad.supplier.profile) ||
-            ad.supplier.email,
-        })),
+            ad.supplier.profile?.company ||
+            ad.supplier.email;
+          const supplierCompany = ad.supplier.profile?.company || "";
+
+          return {
+            id: ad.id,
+            title: ad.title,
+            category: ad.category,
+            createdAt: ad.createdAt,
+            supplier: supplierName,
+            supplierName,
+            supplierCompany,
+            supplierAvatar: ad.supplier.profile?.avatarUrl ?? null,
+            supplierInitials: personInitials(
+              ad.supplier.profile,
+              supplierName,
+            ),
+          };
+        }),
       },
       snapshot: {
         newSubscribers,

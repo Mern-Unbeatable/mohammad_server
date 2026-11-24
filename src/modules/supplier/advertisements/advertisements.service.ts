@@ -280,17 +280,22 @@ async function markAdPaid(ad: { id: string; status: AdStatus }) {
   });
 }
 
-/** Headline KPIs for the admin ads list. */
-async function adsSummary() {
+/** Headline KPIs for the ads list (platform-wide or one supplier). */
+async function adsSummary(scope: Prisma.AdvertisementWhereInput = {}) {
   const [total, active, pending, expired] = await Promise.all([
-    prisma.advertisement.count(),
-    prisma.advertisement.count({ where: { status: AdStatus.ACTIVE } }),
+    prisma.advertisement.count({ where: scope }),
+    prisma.advertisement.count({
+      where: { ...scope, status: AdStatus.ACTIVE },
+    }),
     prisma.advertisement.count({
       where: {
+        ...scope,
         status: { in: [AdStatus.PENDING, AdStatus.PENDING_PAYMENT] },
       },
     }),
-    prisma.advertisement.count({ where: { status: AdStatus.EXPIRED } }),
+    prisma.advertisement.count({
+      where: { ...scope, status: AdStatus.EXPIRED },
+    }),
   ]);
 
   return { total, active, pending, expired };
@@ -329,14 +334,14 @@ export const advertisementsService = {
         take,
       }),
       prisma.advertisement.count({ where }),
-      role === "ADMIN" ? adsSummary() : Promise.resolve(null),
+      adsSummary(scope),
     ]);
 
     return {
       data: rows.map(serialize),
       meta: {
         ...buildPaginationMeta(query.page, query.pageSize, total),
-        ...(summary ? { summary } : {}),
+        summary,
       },
     };
   },
