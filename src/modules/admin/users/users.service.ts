@@ -28,6 +28,21 @@ const STATUS_MAP: Record<string, UserStatus> = {
   banned: UserStatus.BANNED,
 };
 
+/** Headline KPIs for the users list (admins excluded). */
+async function usersSummary() {
+  const memberWhere = { role: { not: Role.ADMIN } } satisfies Prisma.UserWhereInput;
+  const [total, users, suppliers, active] = await Promise.all([
+    prisma.user.count({ where: memberWhere }),
+    prisma.user.count({ where: { role: Role.USER } }),
+    prisma.user.count({ where: { role: Role.SUPPLIER } }),
+    prisma.user.count({
+      where: { ...memberWhere, status: UserStatus.ACTIVE },
+    }),
+  ]);
+
+  return { total, users, suppliers, active };
+}
+
 export const usersService = {
   async listUsers(query: AdminUserListQuery) {
     const { skip, take } = toPrismaPagination(query.page, query.pageSize);
@@ -62,7 +77,7 @@ export const usersService = {
         : {}),
     };
 
-    const [rows, total] = await prisma.$transaction([
+    const [rows, total, summary] = await Promise.all([
       prisma.user.findMany({
         where,
         include: userWithRelations,
@@ -71,11 +86,15 @@ export const usersService = {
         take,
       }),
       prisma.user.count({ where }),
+      usersSummary(),
     ]);
 
     return {
       data: rows.map(serializeUser),
-      meta: buildPaginationMeta(query.page, query.pageSize, total),
+      meta: {
+        ...buildPaginationMeta(query.page, query.pageSize, total),
+        summary,
+      },
     };
   },
 

@@ -111,7 +111,13 @@ type PaymentWithRelations = Payment & {
     id: string;
     email: string;
     role: string;
-    profile?: { firstName: string; lastName: string; company: string | null } | null;
+    profile?: {
+      firstName: string;
+      lastName: string;
+      company: string | null;
+      avatarUrl: string | null;
+      initials: string | null;
+    } | null;
   } | null;
 };
 
@@ -121,6 +127,7 @@ export function serializePayment(payment: PaymentWithRelations) {
   const name = user?.profile
     ? `${user.profile.firstName} ${user.profile.lastName}`.trim()
     : "";
+  const displayName = name || user?.email || "";
 
   return {
     id: payment.id,
@@ -145,8 +152,18 @@ export function serializePayment(payment: PaymentWithRelations) {
             id: user.id,
             email: user.email,
             role: user.role,
-            name: name || user.email,
+            name: displayName,
             company: user.profile?.company ?? null,
+            avatar: user.profile?.avatarUrl ?? null,
+            initials:
+              user.profile?.initials ||
+              displayName
+                .split(" ")
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((part) => part[0]?.toUpperCase())
+                .join("") ||
+              "?",
           },
         }
       : {}),
