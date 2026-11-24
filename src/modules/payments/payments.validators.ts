@@ -7,7 +7,11 @@ const statusSchema = z.enum(["paid", "open", "failed", "void", "uncollectible"])
 /** GET /payments/me */
 export const myPaymentsQuerySchema = paginationQuerySchema
   .pick({ page: true, pageSize: true })
-  .extend({ kind: kindSchema.optional() });
+  .extend({
+    kind: kindSchema.optional(),
+    status: statusSchema.optional(),
+    search: z.string().trim().max(100).optional(),
+  });
 
 /** GET /admin/payments */
 export const adminPaymentsQuerySchema = paginationQuerySchema.extend({
