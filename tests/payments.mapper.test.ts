@@ -171,6 +171,8 @@ describe("serializePayment", () => {
       role: "SUPPLIER",
       name: "Ana Lee",
       company: "LabCo",
+      avatar: null,
+      initials: "AL",
     });
   });
 });

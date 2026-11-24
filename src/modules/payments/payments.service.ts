@@ -23,7 +23,15 @@ const adminInclude = {
       id: true,
       email: true,
       role: true,
-      profile: { select: { firstName: true, lastName: true, company: true } },
+      profile: {
+        select: {
+          firstName: true,
+          lastName: true,
+          company: true,
+          avatarUrl: true,
+          initials: true,
+        },
+      },
     },
   },
 } satisfies Prisma.PaymentInclude;
