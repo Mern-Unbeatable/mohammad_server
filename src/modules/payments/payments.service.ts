@@ -23,7 +23,15 @@ const adminInclude = {
       id: true,
       email: true,
       role: true,
-      profile: { select: { firstName: true, lastName: true, company: true } },
+      profile: {
+        select: {
+          firstName: true,
+          lastName: true,
+          company: true,
+          avatarUrl: true,
+          initials: true,
+        },
+      },
     },
   },
 } satisfies Prisma.PaymentInclude;
@@ -88,13 +96,28 @@ export const paymentsService = {
   async listMine(userId: string, query: MyPaymentsQuery) {
     await syncUserPayments(userId);
 
+    const search = query.search;
     const where: Prisma.PaymentWhereInput = {
       userId,
       ...(query.kind ? { kind: toKind(query.kind) } : {}),
+      ...(query.status ? { status: toStatus(query.status) } : {}),
+      ...(search
+        ? {
+            OR: [
+              { invoiceNumber: { contains: search, mode: "insensitive" } },
+              { description: { contains: search, mode: "insensitive" } },
+              {
+                advertisement: {
+                  title: { contains: search, mode: "insensitive" },
+                },
+              },
+            ],
+          }
+        : {}),
     };
     const { skip, take } = toPrismaPagination(query.page, query.pageSize);
 
-    const [rows, total] = await prisma.$transaction([
+    const [rows, total, summary] = await Promise.all([
       prisma.payment.findMany({
         where,
         include: memberInclude,
@@ -103,11 +126,15 @@ export const paymentsService = {
         take,
       }),
       prisma.payment.count({ where }),
+      paidSummary({ userId }),
     ]);
 
     return {
       data: rows.map(serializePayment),
-      meta: buildPaginationMeta(query.page, query.pageSize, total),
+      meta: {
+        ...buildPaginationMeta(query.page, query.pageSize, total),
+        summary,
+      },
     };
   },
 

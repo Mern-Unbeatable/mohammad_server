@@ -61,6 +61,192 @@ const serialize = (report: Payload) => ({
   })),
 });
 
+const authorFromUser = (
+  user: {
+    id: string;
+    email: string;
+    profile?: {
+      firstName: string;
+      lastName: string;
+      avatarUrl: string | null;
+      initials: string | null;
+      company: string | null;
+    } | null;
+  } | null,
+) => {
+  if (!user) return null;
+  const name =
+    [user.profile?.firstName, user.profile?.lastName].filter(Boolean).join(" ").trim() ||
+    user.email;
+  return {
+    id: user.id,
+    name,
+    avatar: user.profile?.avatarUrl ?? null,
+    initials:
+      user.profile?.initials ||
+      name
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase())
+        .join("") ||
+      "U",
+    company: user.profile?.company ?? null,
+  };
+};
+
+/** Load the live reported entity so admins can review the exact content. */
+async function resolveTarget(
+  targetType: ReportTargetType,
+  targetId: string | null,
+  reportedUserId: string | null,
+  snippet: string | null,
+) {
+  const fallback = {
+    type: targetType,
+    id: targetId,
+    exists: false,
+    title: null as string | null,
+    body: snippet,
+    imageUrl: null as string | null,
+    images: [] as string[],
+    meta: null as string | null,
+    href: null as string | null,
+    author: null as ReturnType<typeof authorFromUser>,
+  };
+
+  if (targetType === ReportTargetType.USER) {
+    const id = targetId || reportedUserId;
+    if (!id) return { ...fallback, id: null };
+    const user = await prisma.user.findUnique({
+      where: { id },
+      include: { profile: true },
+    });
+    if (!user) return { ...fallback, id, title: "User unavailable" };
+    const author = authorFromUser(user);
+    return {
+      ...fallback,
+      id,
+      exists: true,
+      title: author?.name || user.email,
+      body: user.profile?.about || snippet,
+      imageUrl: user.profile?.avatarUrl ?? null,
+      meta: [user.profile?.company, user.email].filter(Boolean).join(" · ") || null,
+      href: `/admin/users/${id}`,
+      author,
+    };
+  }
+
+  if (!targetId) return fallback;
+
+  if (targetType === ReportTargetType.POST) {
+    const post = await prisma.feedPost.findUnique({
+      where: { id: targetId },
+      include: { author: { include: { profile: true } } },
+    });
+    if (!post) return { ...fallback, title: "Post unavailable" };
+    return {
+      ...fallback,
+      exists: true,
+      title: "Feed post",
+      body: post.content || snippet,
+      imageUrl: post.imageUrl || post.imageUrls[0] || null,
+      images: post.imageUrls || [],
+      meta: post.type,
+      href: null,
+      author: authorFromUser(post.author),
+    };
+  }
+
+  if (targetType === ReportTargetType.COMMENT) {
+    const comment = await prisma.feedComment.findUnique({
+      where: { id: targetId },
+      include: {
+        author: { include: { profile: true } },
+        post: { select: { id: true, content: true } },
+      },
+    });
+    if (!comment) return { ...fallback, title: "Comment unavailable" };
+    return {
+      ...fallback,
+      exists: true,
+      title: "Feed comment",
+      body: comment.content || snippet,
+      meta: comment.post?.content
+        ? `On post: ${comment.post.content.slice(0, 120)}`
+        : null,
+      href: null,
+      author: authorFromUser(comment.author),
+    };
+  }
+
+  if (targetType === ReportTargetType.LISTING) {
+    const listing = await prisma.listing.findUnique({
+      where: { id: targetId },
+      include: { seller: { include: { profile: true } } },
+    });
+    if (!listing) return { ...fallback, title: "Listing unavailable" };
+    return {
+      ...fallback,
+      exists: true,
+      title: listing.title,
+      body: listing.description || snippet,
+      imageUrl: listing.images[0] || null,
+      images: listing.images || [],
+      meta: [
+        listing.category,
+        listing.condition,
+        listing.location,
+        `€${(listing.price / 100).toFixed(0)}`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      href: `/admin/marketplace/${listing.id}`,
+      author: authorFromUser(listing.seller),
+    };
+  }
+
+  if (targetType === ReportTargetType.JOB) {
+    const job = await prisma.job.findUnique({
+      where: { id: targetId },
+      include: { owner: { include: { profile: true } } },
+    });
+    if (!job) return { ...fallback, title: "Job unavailable" };
+    return {
+      ...fallback,
+      exists: true,
+      title: job.title,
+      body: job.about || snippet,
+      imageUrl: job.imageUrl,
+      meta: [job.company, job.location, job.employmentType, job.salary]
+        .filter(Boolean)
+        .join(" · "),
+      href: `/admin/recruitment/${job.id}`,
+      author: authorFromUser(job.owner),
+    };
+  }
+
+  if (targetType === ReportTargetType.GENERAL_POST) {
+    const post = await prisma.generalPost.findUnique({
+      where: { id: targetId },
+      include: { author: { include: { profile: true } } },
+    });
+    if (!post) return { ...fallback, title: "General post unavailable" };
+    return {
+      ...fallback,
+      exists: true,
+      title: post.title,
+      body: post.summary || post.body?.join("\n\n") || snippet,
+      imageUrl: post.imageUrl,
+      meta: [post.type, post.category, post.source].filter(Boolean).join(" · "),
+      href: `/admin/general/${post.id}`,
+      author: authorFromUser(post.author),
+    };
+  }
+
+  return fallback;
+}
+
 export const reportsService = {
   async create(
     reporterId: string,
@@ -151,7 +337,13 @@ export const reportsService = {
   async getById(id: string) {
     const report = await prisma.report.findUnique({ where: { id }, include });
     if (!report) throw new NotFoundError("Report not found");
-    return serialize(report);
+    const target = await resolveTarget(
+      report.targetType,
+      report.targetId,
+      report.reportedUserId,
+      report.targetSnippet,
+    );
+    return { ...serialize(report), target };
   },
 
   async stats() {
