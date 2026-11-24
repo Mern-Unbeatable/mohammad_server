@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> main
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -83,10 +79,14 @@ export const env = {
     host: optional("SMTP_HOST", ""),
     port: smtpPort,
     /** Implicit TLS; defaults to true only for port 465 (587/25 use STARTTLS). */
-    secure: optional("SMTP_SECURE", smtpPort === 465 ? "true" : "false") === "true",
+    secure:
+      optional("SMTP_SECURE", smtpPort === 465 ? "true" : "false") === "true",
     user: optional("SMTP_USER", ""),
     pass: optionalAny(["SMTP_PASSWORD", "SMTP_PASS"], ""),
-    from: optionalAny(["SMTP_FROM", "MAIL_FROM"], "Lab Unity <no-reply@labunity.com>"),
+    from: optionalAny(
+      ["SMTP_FROM", "MAIL_FROM"],
+      "Lab Unity <no-reply@labunity.com>",
+    ),
   },
   /** Inbox that receives messages from the public contact form. */
   contactInbox: optional("CONTACT_INBOX_EMAIL", "info@labunity.be"),
@@ -97,7 +97,10 @@ export const env = {
       "MAX_UPLOAD_SIZE_MB",
     ),
     /** Public origin of this API; uploaded file URLs are built from it and stored in the database. */
-    publicUrl: optional("PUBLIC_URL", "http://localhost:4000").replace(/\/+$/, ""),
+    publicUrl: optional("PUBLIC_URL", "http://localhost:4000").replace(
+      /\/+$/,
+      "",
+    ),
     /** Most files accepted in one multi-file request. */
     maxFiles: toNumber(optional("MAX_UPLOAD_FILES", "12"), "MAX_UPLOAD_FILES"),
     /** Chat attachments; never served statically, only through signed links. Must be persistent storage. */
@@ -124,7 +127,8 @@ export const env = {
     priceMonthly: optional("STRIPE_PRICE_MONTHLY", ""),
     priceYearly: optional("STRIPE_PRICE_YEARLY", ""),
     /** Stripe Tax on Checkout (VAT line, billing address, business VAT number). Needs Stripe Tax set up on the account. */
-    automaticTax: optional("STRIPE_AUTOMATIC_TAX", "true").toLowerCase() !== "false",
+    automaticTax:
+      optional("STRIPE_AUTOMATIC_TAX", "true").toLowerCase() !== "false",
     clientUrl,
   },
   /** ICE servers for WebRTC voice calls. TURN credentials stay server-side and are handed to authenticated clients only. */
@@ -143,8 +147,6 @@ export const env = {
 } as const;
 
 export type Env = typeof env;
-<<<<<<< HEAD
-=======
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -226,10 +228,14 @@ export const env = {
     host: optional("SMTP_HOST", ""),
     port: smtpPort,
     /** Implicit TLS; defaults to true only for port 465 (587/25 use STARTTLS). */
-    secure: optional("SMTP_SECURE", smtpPort === 465 ? "true" : "false") === "true",
+    secure:
+      optional("SMTP_SECURE", smtpPort === 465 ? "true" : "false") === "true",
     user: optional("SMTP_USER", ""),
     pass: optionalAny(["SMTP_PASSWORD", "SMTP_PASS"], ""),
-    from: optionalAny(["SMTP_FROM", "MAIL_FROM"], "Lab Unity <no-reply@labunity.com>"),
+    from: optionalAny(
+      ["SMTP_FROM", "MAIL_FROM"],
+      "Lab Unity <no-reply@labunity.com>",
+    ),
   },
   /** Inbox that receives messages from the public contact form. */
   contactInbox: optional("CONTACT_INBOX_EMAIL", "info@labunity.be"),
@@ -240,7 +246,10 @@ export const env = {
       "MAX_UPLOAD_SIZE_MB",
     ),
     /** Public origin of this API; uploaded file URLs are built from it and stored in the database. */
-    publicUrl: optional("PUBLIC_URL", "http://localhost:4000").replace(/\/+$/, ""),
+    publicUrl: optional("PUBLIC_URL", "http://localhost:4000").replace(
+      /\/+$/,
+      "",
+    ),
     /** Most files accepted in one multi-file request. */
     maxFiles: toNumber(optional("MAX_UPLOAD_FILES", "12"), "MAX_UPLOAD_FILES"),
     /** Chat attachments; never served statically, only through signed links. Must be persistent storage. */
@@ -267,7 +276,8 @@ export const env = {
     priceMonthly: optional("STRIPE_PRICE_MONTHLY", ""),
     priceYearly: optional("STRIPE_PRICE_YEARLY", ""),
     /** Stripe Tax on Checkout (VAT line, billing address, business VAT number). Needs Stripe Tax set up on the account. */
-    automaticTax: optional("STRIPE_AUTOMATIC_TAX", "true").toLowerCase() !== "false",
+    automaticTax:
+      optional("STRIPE_AUTOMATIC_TAX", "true").toLowerCase() !== "false",
     clientUrl,
   },
   /** ICE servers for WebRTC voice calls. TURN credentials stay server-side and are handed to authenticated clients only. */
@@ -286,6 +296,3 @@ export const env = {
 } as const;
 
 export type Env = typeof env;
->>>>>>> 549ae48d8efd3a831b08b57988b9daf09dfc2891
-=======
->>>>>>> main
