@@ -6,6 +6,9 @@ import { readCookie } from "@/shared/http/authCookies";
 /** Soft cap for unauthenticated General post detail views. */
 export const GUEST_GENERAL_VIEW_LIMIT = 12;
 
+/** Guest list preview size for GET /general. */
+export const GUEST_GENERAL_LIST_PAGE_SIZE = 8;
+
 const GUEST_VIEWS_COOKIE = "lu_guest_general_views";
 const COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -45,7 +48,7 @@ export const setGuestGeneralViewsCookie = (
   });
 };
 
-/** Guests only see the first page, capped at the guest view limit. */
+/** Guests only see the first page, capped at the guest list size. */
 export const clampGuestGeneralListQuery = (
   req: Request,
   _res: Response,
@@ -57,7 +60,7 @@ export const clampGuestGeneralListQuery = (
   }
   const query = req.query as Record<string, unknown>;
   query.page = "1";
-  query.pageSize = String(GUEST_GENERAL_VIEW_LIMIT);
+  query.pageSize = String(GUEST_GENERAL_LIST_PAGE_SIZE);
   delete query.mine;
   next();
 };
