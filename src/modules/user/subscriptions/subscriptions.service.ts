@@ -2,7 +2,11 @@ import Stripe from "stripe";
 import { SubscriptionPlan, SubscriptionStatus } from "@prisma/client";
 import { prisma } from "@/infrastructure/prisma";
 import { env } from "@/config/env";
-import { BadRequestError, ConflictError, NotFoundError } from "@/shared/errors/AppError";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+} from "@/shared/errors/AppError";
 import { serializeSubscription } from "@/shared/serializers/user.serializer";
 import { logger } from "@/config/logger";
 import {
@@ -269,9 +273,8 @@ async function processStripeEvent(event: Stripe.Event, stripe: Stripe) {
       const session = event.data.object as Stripe.Checkout.Session;
       // One-time advertising-fee payments are tagged with metadata.kind = "ad".
       if (session.mode === "payment" && session.metadata?.kind === "ad") {
-        const { advertisementsService } = await import(
-          "@/modules/supplier/advertisements/advertisements.service"
-        );
+        const { advertisementsService } =
+          await import("@/modules/supplier/advertisements/advertisements.service");
         await advertisementsService.applyAdCheckoutSession(session);
         await recordAdCheckoutSession(session);
       } else {
@@ -509,14 +512,15 @@ export const subscriptionsService = {
     });
 
     if (session.metadata?.userId && session.metadata.userId !== userId) {
-      throw new BadRequestError("Checkout session does not belong to this user");
+      throw new BadRequestError(
+        "Checkout session does not belong to this user",
+      );
     }
 
-    if (
-      session.client_reference_id &&
-      session.client_reference_id !== userId
-    ) {
-      throw new BadRequestError("Checkout session does not belong to this user");
+    if (session.client_reference_id && session.client_reference_id !== userId) {
+      throw new BadRequestError(
+        "Checkout session does not belong to this user",
+      );
     }
 
     await applyCheckoutSession(session);
@@ -524,7 +528,10 @@ export const subscriptionsService = {
     // Show the first invoice in the member's history even if the webhook lags.
     if (session.invoice) {
       await recordInvoiceById(session.invoice, { userId }).catch((err) =>
-        logger.warn({ userId, sessionId, err }, "Could not record checkout invoice"),
+        logger.warn(
+          { userId, sessionId, err },
+          "Could not record checkout invoice",
+        ),
       );
     }
 

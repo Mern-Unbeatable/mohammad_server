@@ -6,9 +6,7 @@ let stripeClient: Stripe | null = null;
 
 export function isPaymentConfigured(): boolean {
   return Boolean(
-    env.stripe.secretKey &&
-      env.stripe.priceMonthly &&
-      env.stripe.priceYearly,
+    env.stripe.secretKey && env.stripe.priceMonthly && env.stripe.priceYearly,
   );
 }
 
@@ -37,7 +35,10 @@ export function getStripePriceId(plan: "MONTHLY" | "YEARLY"): string {
 
 type CheckoutTaxOptions = Pick<
   Stripe.Checkout.SessionCreateParams,
-  "automatic_tax" | "billing_address_collection" | "tax_id_collection" | "customer_update"
+  | "automatic_tax"
+  | "billing_address_collection"
+  | "tax_id_collection"
+  | "customer_update"
 >;
 
 /**
@@ -55,7 +56,9 @@ export function checkoutTaxOptions(hasCustomer: boolean): CheckoutTaxOptions {
     automatic_tax: { enabled: true },
     billing_address_collection: "required",
     tax_id_collection: { enabled: true },
-    ...(hasCustomer ? { customer_update: { address: "auto", name: "auto" } } : {}),
+    ...(hasCustomer
+      ? { customer_update: { address: "auto", name: "auto" } }
+      : {}),
   };
 }
 
