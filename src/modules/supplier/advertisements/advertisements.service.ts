@@ -440,9 +440,8 @@ export const advertisementsService = {
     if (recent) return serialize(recent);
 
     // Server-authoritative advertising fee from the sponsored pricing tier.
-    const { feeCents } = await settingsService.getSponsoredFeeCents(
-      durationDays,
-    );
+    const { feeCents } =
+      await settingsService.getSponsoredFeeCents(durationDays);
 
     const ad = await prisma.advertisement.create({
       data: {
@@ -549,7 +548,10 @@ export const advertisementsService = {
     const ad = await loadOwned(userId, id);
     if (ad.status === AdStatus.CANCELLED) {
       return serialize(
-        await prisma.advertisement.findUniqueOrThrow({ where: { id }, include }),
+        await prisma.advertisement.findUniqueOrThrow({
+          where: { id },
+          include,
+        }),
       );
     }
     const updated = await prisma.advertisement.update({
@@ -623,7 +625,10 @@ export const advertisementsService = {
     try {
       customer = await ensureStripeCustomer(userId);
     } catch (err) {
-      logger.warn({ userId, err }, "No Stripe customer for ad checkout; using a guest customer");
+      logger.warn(
+        { userId, err },
+        "No Stripe customer for ad checkout; using a guest customer",
+      );
     }
     const description = `Sponsored advertisement — ${ad.durationDays} days`;
     const paymentMetadata = { kind: "ad", adId: id, userId };
@@ -701,13 +706,18 @@ export const advertisementsService = {
       throw new BadRequestError("Checkout session does not belong to this ad");
     }
     if (session.metadata?.userId && session.metadata.userId !== userId) {
-      throw new BadRequestError("Checkout session does not belong to this user");
+      throw new BadRequestError(
+        "Checkout session does not belong to this user",
+      );
     }
 
     if (session.payment_status === "paid") {
       const paid = await markAdPaid(ad);
       await recordAdCheckoutSession(session).catch((err) =>
-        logger.warn({ adId: id, sessionId, err }, "Could not record ad payment"),
+        logger.warn(
+          { adId: id, sessionId, err },
+          "Could not record ad payment",
+        ),
       );
       return serialize(paid);
     }

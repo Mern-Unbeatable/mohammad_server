@@ -34,7 +34,7 @@ const serialize = (post: Payload) => ({
 
 export const generalService = {
   async list(
-    userId: string,
+    userId: string | null,
     query: {
       page: number;
       pageSize: number;
@@ -45,9 +45,10 @@ export const generalService = {
     },
   ) {
     const { skip, take } = toPrismaPagination(query.page, query.pageSize);
+    const mine = Boolean(query.mine && userId);
     const where: Prisma.GeneralPostWhereInput = {
       ...(query.type ? { type: TYPE_MAP[query.type] } : {}),
-      ...(query.mine ? { authorId: userId } : {}),
+      ...(mine ? { authorId: userId! } : {}),
       ...(query.search
         ? {
             OR: [

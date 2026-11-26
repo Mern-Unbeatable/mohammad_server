@@ -6,7 +6,7 @@ import { generalService } from "./general.service";
 
 export const generalController = {
   list: asyncHandler(async (req: Request, res: Response) => {
-    const result = await generalService.list(req.user!.id, req.query as never);
+    const result = await generalService.list(req.user?.id ?? null, req.query as never);
     sendSuccess(res, { data: result.data, meta: result.meta });
   }),
 
